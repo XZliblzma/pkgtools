@@ -21,7 +21,7 @@ set -e
 umask 0022
 
 # Versions:
-VERSION=tukaani_1.2.4
+VERSION=tukaani_1.2.5
 DIALOG=1.0-20060221
 BUILD=1
 
