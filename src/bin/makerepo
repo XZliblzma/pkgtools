@@ -606,7 +606,7 @@ fi
 cd "$1"
 
 [ "$OFFICIAL_REPO" = "yes" ] \
-    && DIRLIST='./slackware ./contrib ./extra ./pasture ./testing' \
+    && DIRLIST='./slackware ./contrib ./extra ./pasture ./testing ./patches' \
     || DIRLIST=.
 
 for I in $DIRLIST; do
