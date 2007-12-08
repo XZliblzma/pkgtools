@@ -312,7 +312,7 @@ installpkg_gnuinfo() {
         (
           set +f
           for FILE in "$ROOT/$INFO_DIR/"*; do
-            "$ROOT/$INSTALL_INFO" -- "$ROOT/$FILE" "$ROOT/$INFO_DIR/dir" \
+            "$ROOT/$INSTALL_INFO" -- "$FILE" "$ROOT/$INFO_DIR/dir" \
                 > /dev/null 2> /dev/null
           done
         )
