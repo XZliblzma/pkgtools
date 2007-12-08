@@ -1,2 +1,0 @@
-tukaani-solid "Tukaani Solid (stable)" \
-tukaani-edge "Tukaani Edge (development)" \
