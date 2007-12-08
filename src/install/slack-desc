@@ -1,0 +1,12 @@
+        |-----handy-ruler------------------------------------------------------|
+pkgtools: pkgtools (Tukaani's Slackware compatible package maintenance system)
+pkgtools:
+pkgtools: pkgtools contains various utilities for managing Tukaani and
+pkgtools: Slackware packages, such as 'installpkg', 'removepkg', upgradepkg',
+pkgtools: 'makepkg', 'viewpkg' and 'explodepkg'. Also included are 'pkgtool',
+pkgtools: which is a powerful menu-based program for managing packages,
+pkgtools: 'makerepo' for creating package repositories for pkgtool, 'config-xwm'
+pkgtools: for selecting X11 window manager, and a few other scripts. This
+pkgtools: package includes 'dialog' and 'tar-1.13-pkgtools' binaries.
+pkgtools:
+pkgtools: http://tukaani.org/pkgtools/

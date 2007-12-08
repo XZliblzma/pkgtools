@@ -1,0 +1,59 @@
+#
+# pkgtools configuration file
+#
+# This file is read like a shell script (included as is by sh/ash/bash).
+# Empty lines and lines beginning with a hash are ignored. That's why
+# you should put here only options listed below to avoid mysterious errors.
+#
+# Tip for advanced users: you can use $ROOT variable here.
+#
+
+# Directory to store downloaded packages. If directory does not exist or
+# is a non-directory, it is silently deleted (rm -rf) and then created.
+# Default: PACKAGE_CACHE_DIR="/var/cache/packages"
+
+PACKAGE_CACHE_DIR="/var/cache/packages"
+
+
+# If you want packages installed from the Internet to be removed after
+# installation change this to KEEP_DOWNLOADED=0. By default downloaded
+# packages are left to package cache directory specified above.
+# Default: KEEP_DOWNLOADED=1
+
+KEEP_DOWNLOADED=1
+
+
+# Parameters to pass to wget. See man page wget(1) for more information.
+# Default: WGET_FLAGS="--passive-ftp"
+
+WGET_FLAGS="--passive-ftp"
+
+
+# The file containing the list of blacklisted packages. If the specified
+# file does not exists this option is silently ignored. Note that blacklist
+# is only used by pkgtool, not installpkg or upgradepkg.
+# Default: BLACKLIST_FILE="/etc/pkgtools/blacklist"
+
+BLACKLIST_FILE="/etc/pkgtools/blacklist"
+
+
+# The GPG related options below affect *only* installpkg and upgradepkg.
+# GPG usage in pkgtool is configured separately for each repository.
+
+# If you want to verify GPG signatures of downloaded packages, set
+# VERIFY_GPG_DOWNLOADED=1. When signature verification is turned on,
+# no downloaded package without a valid signature is installed.
+# Default: VERIFY_GPG_DOWNLOADED=1
+
+VERIFY_GPG_DOWNLOADED=0
+
+
+# If you want to verify GPG signatures of local packages (i.e. no HTTP or
+# FTP URL), set VERIFY_GPG_LOCAL=1. When signature verification is turned
+# on, no local package without a valid signature is installed.
+# Default: VERIFY_GPG_LOCAL=0
+
+VERIFY_GPG_LOCAL=0
+
+
+# End of config file

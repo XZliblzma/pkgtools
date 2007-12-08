@@ -1,0 +1,127 @@
+.TH UPGRADEPKG 8 "24 Dec 2005" "Tukaani Linux"
+.SH NAME
+upgradepkg \- upgrade and install new Slackware and Tukaani compatible
+packages.
+
+.SH SYNOPSIS
+.B upgradepkg
+.RB [ --warn ]
+.RB [ --install-new ]
+.RB [ --reinstall ]
+.RB [ --quiet ]
+.RB [ "\-\-root \fI/otherroot" ]
+.I newpackagename
+.RI [ newpackagename2 ]
+.LP
+.B upgradepkg
+.RB [ --warn ]
+.RB [ --install-new ]
+.RB [ --reinstall ]
+.RB [ --quiet ]
+.RB [ "\-\-root \fI/otherroot" ]
+.IB oldpackagename % newpackagename
+.RI [ "old2\fB%" "" new2 ]
+
+.SH DESCRIPTION
+.B upgradepkg
+upgrades a Slackware/Tukaani package from an older version to a
+newer one.  It does this by
+.B INSTALLING
+the new package onto the system, and then
+.B REMOVING 
+any files from the old package that aren't in the new package.  If the
+old and new packages have the same basename, a single argument is all
+that is required.  If the packages have different basenames, supply the
+name of the old package followed by a percent symbol
+.RB ( % ),
+then the name of the new package.
+Do not add any extra whitespace between pairs of old/new package names.
+.PP
+If upgradepkg finds more than one installed package matching the old package's
+basename, it will remove them all.
+
+.SH OPTIONS
+.TP
+.BR -w ", " \-\-warn ", " --dry-run
+Output a report about which packages would be installed or upgraded
+but don't actually perform the upgrades.
+.TP
+.BR -i ", " \-\-install\-new
+Normally upgradepkg only upgrades packages that are already installed on the system, and
+will skip any packages that do not already have a version installed.
+If
+.B \-\-install\-new
+is specified, the behavior is modified to install new packages in addition to upgrading
+existing ones.
+.TP
+.BR -r ", " \-\-reinstall
+Upgradepkg usually skips packages if the exact same package (matching
+name, version, arch, and build number) is already installed on the
+system.  Use the --reinstall option if you want to upgrade all packages
+even if the same version is already installed.
+.TP
+.BR \-g ", " \-\-gpg
+Force the verification of GPG signatures overriding the options set in
+the configuration file. Only packages that have been signed with a known
+valid key are installed. The signature files have
+.B .asc
+extension e.g. signature file of foo-0.12-i486-1barney.tgz is
+foo-0.12-i486-1barney.tgz.asc.
+.TP
+.BR \-G ", " \-\-no-gpg
+Forcibly disable the verfication of GPG signatures overriding the
+settings set in the configuration file.
+.TP
+.B \-v, \-\-verbose
+List all the files being removed. Normally only warnings and errors are
+shown, e.g. if some files were not found.
+.TP
+.BR -q ", " \-\-quiet
+Suppress all messages except wget download information.
+.TP
+.BI "\-R " "/otherroot\fR, " "\-\-root " "/otherroot"
+Install using a location other than / (the default) as the root of the
+filesystem to install on. In the example given, use /otherroot
+instead. Setting the
+.B ROOT
+environment variable does the same thing.
+.TP
+.BR \-K ", " \-\-keep\-dotnew
+.B Warning: This option is only for experts!
+.br
+While packages are installed, information about files having extension
+.B .new
+is collected to a temporary file. Normally the list is shown at the end
+of the installation process and the temporary file is removed.
+Specifying
+.B \-\-keep\-dotnew
+prevents
+.B upgradepkg
+from showing those files and deleting the temporary file which is stored to
+.BR $ROOT/var/log/setup/tmp/dotnew .
+In practice this is only useful when
+.B upgradepkg
+is called from other scripts.
+
+.SH BUGS
+Before upgrading a package, save any configuration files (such as in /etc)
+that you wish to keep.  Sometimes these will be preserved, but it depends on
+the package structure.  If you want to force new versions of the config files
+to be installed, remove the old ones manually prior to running upgradepkg.
+
+.SH AUTHORS
+Original by Patrick J. Volkerding <volkerdi@slackware.com>
+.PP
+Revised for Tukaani Linux by Lasse Collin <lasse.collin@tukaani.org>
+and Ville Koskinen <w\-ber@iki.fi>
+
+.SH "SEE ALSO"
+.BR pkgtool (8),
+.BR installpkg (8),
+.BR removepkg (8),
+.BR upgradepkg (8),
+.BR viewpkg (1),
+.BR explodepkg (1),
+.BR makepkg (1),
+.BR convertpkg (1),
+.BR makerepo (1)

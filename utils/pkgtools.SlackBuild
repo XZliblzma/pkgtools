@@ -1,0 +1,135 @@
+#!/bin/sh
+
+# This script builds and packages Tukaani pkgtools. There should be no
+# special build time dependencies e.g. this does not use the system's
+# makepkg command to build the package file.
+#
+# Executing this script requires root priviledges to set correct
+# ownerships. This script does not modify any files on your system.
+
+
+###################
+# Initializations #
+###################
+
+# Very basic checks and settings:
+if [ "$(id -u)" != "0" ]; then
+  echo "You need to be root to build the pkgtools package."
+  exit 1
+fi
+set -e
+umask 0022
+
+# Versions:
+VERSION=tukaani_1.2.4
+DIALOG=1.0-20060221
+BUILD=1
+
+# Architechture and appropriate configure triplet:
+[ -z "$ARCH" ] && ARCH=$(uname -m)
+case "$ARCH" in (i?86) ARCH=i486 ;; esac
+CONFIGURE_TRIPLET=$ARCH-slackware-linux
+
+# Installation prefixes:
+PREFIX=/usr
+BINDIR=/bin
+DATADIR=/usr/share  # FIXME: pkgtools is hardcoded to use /usr/share/pkgtools.
+MANDIR=/usr/man
+DOCDIR=/usr/doc
+SYSCONFDIR=/etc  # FIXME: pkgtools is hardcoded to usr /etc/pkgtools.
+
+# Source location (current directory) and temporary directory:
+CWD=$(pwd)
+PKG=$CWD/tmp/package-pkgtools
+TMP=$CWD/tmp
+rm -rf "$TMP" "$PKG"
+mkdir -p "$TMP" "$PKG"
+
+# CFLAGS:
+case "$ARCH" in
+  i386)         CFLAGS="-O2 -march=i386 -mtune=i686 -fomit-frame-pointer" ;;
+  i486)         CFLAGS="-O2 -march=i486 -mtune=i686 -fomit-frame-pointer" ;;
+  s390)         CFLAGS="-O2" ;;
+  powerpc)      CFLAGS="-O2" ;;
+  x86_64)       CFLAGS="-O2 -fPIC" ;;
+  *)            echo "ERROR: Unknown ARCH: $ARCH"; exit 1 ;;
+esac
+export CFLAGS
+            
+
+#############
+# Framework #
+#############
+cd "$PKG"
+gzip -dc "$CWD/_pkgtools.tar.gz" | tar xvpf -
+
+
+############
+# tar-1.13 #
+############
+cd "$TMP"
+gzip -dc "$CWD/tar-1.13.tar.gz" | tar xvpf -
+cd tar-1.13
+zcat "$CWD/tar-1.13.compression-flags.diff.gz" | patch -p1 --verbose
+zcat "$CWD/tar-1.13.no-overwrite-dir-flag.diff.gz" | patch -p1 --verbose
+chown -R 0:0 .
+./configure \
+  --prefix=$PREFIX \
+  --bindir=$BINDIR \
+  --disable-nls \
+  --with-ncursesw \
+  --enable-widec \
+  $CONFIGURE_TRIPLET
+make
+mkdir -p $PKG$BINDIR
+cat src/tar > $PKG$BINDIR/tar-1.13-pkgtools
+strip $PKG$BINDIR/tar-1.13-pkgtools
+chmod 0755 $PKG$BINDIR/tar-1.13-pkgtools
+
+# Take only a few documentation files, mostly for
+# copyright and credit information. Everyone should
+# use newer tar version for everything else than packages.
+mkdir -p $PKG$DOCDIR/tar-1.13
+cp -a AUTHORS ChangeLog COPYING THANKS $PKG$DOCDIR/tar-1.13
+
+
+##########
+# dialog #
+##########
+cd "$TMP"
+tar xzvf $CWD/dialog-$DIALOG.tar.gz
+cd dialog-$DIALOG
+find . -perm 444 -exec chmod 644 {} \;
+chown -R 0:0 .
+# Fix --help-button return the current item name also when --item-help is in
+# use. Without this patch --help-button is quite useless.
+zcat "$CWD/dialog.checklist.help.diff.gz" | patch -p0
+./configure \
+  --prefix=$PREFIX \
+  --bindir=$BINDIR \
+  --mandir=$MANDIR \
+  --enable-nls \
+  $CONFIGURE_TRIPLET
+make
+make DESTDIR=$PKG install
+strip $PKG$BINDIR/dialog
+gzip -9 $PKG$MANDIR/man1/dialog.1
+mkdir -p $PKG$SYSCONFDIR
+cat samples/slackware.rc > $PKG$SYSCONFDIR/dialogrc
+mkdir -p $PKG$DOCDIR/dialog-$DIALOG
+cp -a CHANGES COPYING README VERSION dialog.lsm $PKG$DOCDIR/dialog-$DIALOG
+
+
+######################
+# Create the package #
+######################
+cd "$PKG"
+
+# Create the package using our brand new but old tar-1.13:
+.$BINDIR/tar-1.13-pkgtools cvf - --owner=root --group=root . \
+  | gzip -9 \
+  > "$TMP/pkgtools-$VERSION-$ARCH-$BUILD.tgz"
+
+echo
+echo Package created: "$TMP/pkgtools-$VERSION-$ARCH-$BUILD.tgz"
+echo

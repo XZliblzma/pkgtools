@@ -1,0 +1,31 @@
+
+Since Larhzu is no longer planning to add any new features to pkgtools,
+don't except him to implement any of these. Maybe someone else is
+willing to continue the work on pkgtools.
+
+Important:
+  * Add GPG signing to `makerepo'.
+  * Add a filter for searching filenames inside the packages. It has
+    been quite common question on IRC "what package contains `foo'".
+    This feature would require downloading and parsing MANIFEST.bz2.
+  * Regular expression support to blacklist file.
+  * Show how many megabytes has been downloaded and total download size.
+  * Improve command line of pkgtool.
+
+Not important:
+  * SHA1 sum support
+  * Detect terminal size and adjust sizes of the dialogs. It would be
+    nice to see more packages at once when using a big terminal.
+  * `dialog' based editor for the list of the blacklisted packages
+
+Experimental ideas:
+  * Download and install simultanously; could be much faster when installing
+    many packages. Especially useful in setup program mode.
+  * Use binary diffs to distribute updates. Users with slow connection
+    would be happy to download 200 kB instead of 15 MB.
+
+Things that will *NOT* be added:
+  * Dependency support. If you like dependency things you need to use some
+    other software (slapt-get is recommended).
+  * scp and sftp support
+

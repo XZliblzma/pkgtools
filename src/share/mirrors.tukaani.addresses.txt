@@ -1,0 +1,2 @@
+ftp.tukaani.org "Finland" ftp://tukaani.org/tukaani/ \
+ftp.nethence.com "France" ftp://ftp.nethence.com/mirrors/tukaani/ \

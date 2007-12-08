@@ -1,0 +1,218 @@
+#!/bin/sh
+#
+# See the file `COPYRIGHT' for copyright and license information.
+#
+# If installpkg encounters a problem, it will return a non-zero error code.
+# If it finds more than one problem (i.e. with a list of packages) you'll only
+# hear about the most recent one. :)
+# 1 = package corrupt
+# 2 = (unused)
+# 3 = does not end in .tgz, .tlz, .tbz or .tar
+# 4 = not a file
+# 5 = wget returned an error
+# 6 = uncompression tool missing (in practice this is usually lzma)
+# 7 = error extracting the package to the filesystem, probably disk full
+# 10 = Not run by root
+# 20 = VERIFY_GPG_DOWNLOADED=1 or VERIFY_GPG_LOCAL=1 and no signature file was found
+# 21 = GPG signature verification failed (no matter what VERFY_GPG is set to)
+# 22 = VERIFY_GPG_DOWNLOADED=1 or VERIFY_GPG_LOCAL=1 and GPG signature has been
+#      created using an unknown key, or other error from gpgv.
+# 97 = Fatal error parsing command line
+# 99 = Invalid command line parameters, usage shown
+EXITSTATUS=0
+
+# Load shared functions:
+. /usr/share/pkgtools/functions.common.sh
+include installpkg
+include download
+include gnupg
+include dotnew
+include log
+
+usage() {
+  cat << EOF
+
+Usage: installpkg [options] package_file_name [package_file_name_2 ... ]
+
+         package_file_name   Can be .tgz (tar+gzip), .tlz (tar+lzma),
+                             .tbz (tar+bzip2) or .tar (plain tar archive).
+                             Also HTTP and FTP URLs are supported.
+
+Options: -d, --download-only Download the package to the cache directory
+                             (default is /var/cache/packages) but do not
+                             install it.
+
+         -w, --warn          Warn what files would be overwritten, but do
+                             not install. This feature does not support
+                             HTTP/FTP addresses.
+
+         -q, --quiet         Show no status messages during installation
+                             except wget download information.
+
+         -g, --gpg           Verify GPG signature and refuse to install if
+                             signature does not match or cannot be verified.
+
+         -G, --no-gpg        Skip GPG signature verification.
+
+         -b, --base dir      Specify the directory or URL which is prepended to
+                             every package name specified on the command line.
+
+         -R, --root dir      Use a different root directory. This option
+                             overrides the \$ROOT environment variable.
+
+EOF
+  exit 0
+}
+
+# Parse options, -a is here for compatibility with original installpkg:
+[ $# = 0 ] && usage
+ARGS=$(getopt -a -n installpkg -o qvwdb:NR:gGh \
+  -l quiet,verbose,warn,download-only,no-ldconfig,base:,root:,gpg,no-gpg \
+  -l upgradepkg-finalize,help -- "$@")
+[ $? != 0 ] && exit 99
+eval set -- "$ARGS"
+unset ARGS WARN DOWNLOAD_ONLY NOLDCONFIG BASEDIR UPGRADEPKG_STEP FORCE_GPG
+VERBOSE=normal
+while : ; do
+  case "$1" in
+    -q|--quiet)                 VERBOSE=quiet ;;
+    -v|--verbose)               VERBOSE=verbose ;;
+    -w|--warn)                  WARN=yes ;;
+    -d|--download-only)         DOWNLOAD_ONLY=yes ;;
+    -N|--no-ldconfig)           NOLDCONFIG=yes ;;
+    -b|--base)                  BASEDIR="$2/"; shift 1 ;;
+    -R|--root)                  check_root_dir_exists "$2"; ROOT=$2; shift 1 ;;
+    -g|--gpg)                   FORCE_GPG=1 ;;
+    -G|--no-gpg)                FORCE_GPG=0 ;;
+    -h|--help)                  usage ;;
+    --upgradepkg-finalize)      ;; # Ignored for tukaani_1.0.0 compatibility.
+    --)                         shift 1; break ;;
+    *)                          exit_getopt_error ;;
+  esac
+  shift 1
+done
+[ $# = 0 ] && exit_no_packages_specified
+check_is_run_by_root
+
+initialize_variables_and_package_database
+
+# If --warn mode was requested, produce the output and then exit:
+if [ "$WARN" = "yes" ]; then
+  set -f
+  while [ -f "$BASEDIR$1" ]; do
+    echo
+    if is_url_package "$BASEDIR$1"; then
+      echo "Error: --warn does not support HTTP/FTP URLs."
+      echo
+      continue
+    fi
+    echo "#### Scanning the contents of $BASEDIR$1..."
+    mkdir -m 0700 -p "$TMP/scan$$"
+    uncompress_pkg "$BASEDIR$1" | $TAR xf - -C "$TMP/scan$$" install 2> /dev/null
+    if [ -r "$TMP/scan$$/install/doinst.sh" ]; then
+      if [ $(extract_links < "$TMP/scan$$/install/doinst.sh" | wc -l) != 0 ]; then
+        for name in $(extract_links < "$TMP/scan$$/install/doinst.sh"); do
+          [ -e "$ROOT/$name" ] && ls -lhd "$ROOT/$name" >> "$TMP/scan$$/symlinks"
+        done
+      fi
+    fi
+    uncompress_pkg "$BASEDIR$1" | $TAR tf - > "$TMP/scan$$/list"
+    for name in $(grep -v '/$' "$TMP/scan$$/list"); do
+      [ -e "$ROOT/$name" ] && ls -lhd "$ROOT/$name" >> "$TMP/scan$$/files"
+    done
+    # Package has a directory and on disk exists a non-directory or
+    # a symlink to a non-directory:
+    for name in $(grep '/$' "$TMP/scan$$/list"); do
+      [ -e "$ROOT/$name" -a ! -d "$ROOT/$name" ] && ls -lhd "$ROOT/$name" >> "$TMP/scan$$/files"
+    done
+    # Show results:
+    if [ -f "$TMP/scan$$/symlinks" ]; then
+      echo
+      echo "# The following locations will be completely WIPED OUT to allow symbolic"
+      echo "# links to be made. (We're talking 'rm -rf') These locations may be files,"
+      echo "# or entire directories.  Be sure you've backed up anything at these"
+      echo "# locations that you want to save before you install this package:"
+      cat "$TMP/scan$$/symlinks"
+    fi
+    if [ -f "$TMP/scan$$/files" ]; then
+      echo
+      echo "# The following files will be overwritten when installing this package."
+      echo "# Be sure they aren't important before you install this package:"
+      cat "$TMP/scan$$/files"
+    fi
+    if [ ! -f "$TMP/scan$$/symlinks" -a ! -f "$TMP/scan$$/files" ]; then
+      echo
+      echo "# Package $BASEDIR$1 will not overwrite any files."
+      GREPEXPR="^(#| *$|\( cd .* ; (ln -sf|rm -rf) .* \)$|rm -rf -- '.*' #Symlink#$)"
+      if grep -vE "$GREPEXPR" "$TMP/scan$$/install/doinst.sh" 1>/dev/null 2>/dev/null ; then
+        echo "# To be very sure about this you should check the parts of"
+        echo "# the doinst.sh script shown below:"
+        grep -vE "$GREPEXPR" "$TMP/scan$$/install/doinst.sh"
+      fi
+    fi
+    [ -d "$TMP/scan$$" ] && rm -rf "$TMP/scan$$"
+    echo
+    shift 1
+  done
+  exit 0
+fi
+# End of warn mode code.
+
+dotnew_cleanup
+installpkg_init $# $FORCE_GPG
+
+# Main loop:
+for PKG; do
+  PKG="$BASEDIR$PKG"
+
+  # Check that the package name is reasonable, and set PKG_* variables:
+  installpkg_checkname || { EXITSTATUS=$?; continue; }
+
+  # Show a nice banner:
+  if [ "$DOWNLOAD_ONLY" = "yes" ]; then
+    installpkg_banner "Downloading $PKG_FULLNAME.$PKG_TYPE"
+  else
+    installpkg_banner "Installing $PKG_FULLNAME.$PKG_TYPE"
+  fi
+
+  # Download and verify GPG signature:
+  installpkg_download_and_gnupg || { EXITSTATUS=$?; continue; }
+
+  # Skip the rest if we were just downloading:
+  if [ "$DOWNLOAD_ONLY" = "yes" ]; then
+    [ "$VERBOSE" != "quiet" ] && echo -e \
+        "Package $PKG_FULLNAME.$PKG_TYPE saved to $PACKAGE_CACHE_DIR.\n"
+    continue
+  fi
+
+  # Get the filelist from the package and store it to $TMP/files.$PKG_FULLNAME:
+  installpkg_filelist || { EXITSTATUS=$?; continue; }
+
+  # Install the package:
+  installpkg_install || { EXITSTATUS=$?; break; }
+
+  # Write the package file database entry:
+  installpkg_db
+
+  # Put the list of the *.new files to a temporary file:
+  dotnew_add "$PKG_FULLNAME"
+
+  # Update the GNU info directory:
+  installpkg_gnuinfo
+
+  # Clean up the mess...
+  installpkg_cleanup
+
+  # Record the installation to the log file:
+  log_line "Installed new: $PKG_FULLNAME.$PKG_TYPE"
+
+  [ "$VERBOSE" != "quiet" ] && echo
+done
+
+if [ "$VERBOSE" != "quiet" ]; then
+  dotnew_print_new
+  dotnew_print_kernel
+fi
+dotnew_cleanup
+
+exit $EXITSTATUS

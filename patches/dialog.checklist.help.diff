@@ -1,0 +1,31 @@
+# Make --help-button return the item name even if --item-help has been
+# specified. Without this patch it is practically impossible to make
+# Details-buttons to work in pkgtools.
+
+--- checklist.c.orig	2006-01-27 03:29:08.000000000 +0200
++++ checklist.c	2006-04-01 20:16:29.000000000 +0300
+@@ -638,6 +638,7 @@
+     case DLG_EXIT_HELP:
+ 	dlg_add_result("HELP ");
+ 	show_status = dialog_vars.help_status;
++/*
+ 	if (USE_ITEM_HELP(listitems[current].help)) {
+ 	    if (show_status) {
+ 		if (separate_output) {
+@@ -651,6 +652,7 @@
+ 	    }
+ 	    result = DLG_EXIT_ITEM_HELP;
+ 	} else {
++*/
+ 	    if (show_status) {
+ 		if (separate_output) {
+ 		    dlg_add_result(listitems[current].name);
+@@ -661,7 +663,7 @@
+ 	    } else {
+ 		dlg_add_result(listitems[current].name);
+ 	    }
+-	}
++/*	} */
+ 	break;
+     }
+ 

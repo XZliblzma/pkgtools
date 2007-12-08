@@ -1,0 +1,276 @@
+.TH PKGTOOL 8 "8 Jul 2006" "Tukaani Linux"
+.SH NAME
+pkgtool \- software package maintenance tool.
+
+.SH SYNOPSIS
+.B pkgtool
+.RI [ options ] " " [ "command " [ arguments ]]
+
+.SH DESCRIPTION
+.B pkgtool
+is the standard package maintenance tool provided with the Slackware
+Linux distribution.  It allows the user to install, upgrade, remove, or
+view software packages through an interactive menu system.  Pkgtool can
+also be used to re-run the menu-driven scripts normally executed at the
+end of a Slackware installation.  This is useful for doing basic
+reconfiguration (like changing the mouse type).
+.PP
+.B pkgtool
+can be used in two modes: menu based and command line. Menus are created with
+.BR dialog (1)
+.PP
+There is also a third mode which is used by the installation program. It can 
+be invoked with
+.BI "pkgtool setup " source " " root_device
+This feature is not properly documented yet.
+
+.SH OPTIONS
+.TP
+.BI "\-R " dir ", \-\-root " dir
+Use different filesystem root directory. Defaults to
+.BR / .
+Instead of \-\-root you can use the
+.B ROOT
+environment variable. If both are speficied, \-\-root overrides $ROOT.
+.TP
+.BR \-q ", " \-\-quiet
+Suppress messages except the wget progress bar. This can only be used in
+command line mode.
+.TP
+.B \-\-help
+Prints a list of supported commands and options.
+
+.SH COMMANDS
+Arguments shown in [brackets] are optional. The default repository is the
+first repository in the alphabetical order.
+.PP
+.B GENERAL COMMANDS (NON-INTERACTIVE)
+.TP
+.B check
+Checks package database integrity and reports errors found. 
+Pkgtool checks for valid package names, packages left from failed upgradepkg,
+orphan installation scripts which do not have a matching package
+installed.
+.TP
+.B purge
+Empties the cache directory containing the downloaded packages. By
+default the cache directory is /var/cache/packages. See section
+.B FILES
+for config file options.
+.TP
+.B tools
+Check that the required helper applications are installed and show the results.
+.TP
+.B help
+Alias for
+.BR \-\-help .
+.PP
+.B INTERACTIVE REPOSITORY COMMANDS
+.TP
+.IR "\fBmenu " [ reponame "] " search_regex
+Abbreviation:
+.B m
+.br
+Search specified repository for package names matching the
+.IR search_regex .
+Results are shown in a dialog based menu where you can
+select packages to be installed. This is equivalent to selecting
+Repositories \-> reponame \-> CustomName.
+.TP
+.IR "\fBmenu\-desc " [ reponame "] " search_regex
+Abbreviation:
+.B md
+.br
+Search specified repository for packages whose description matches
+regular expression
+.IR search_regex .
+Results are shown in a dialog based menu where you can
+select packages to be installed. This is equivalent to selecting
+Repositories \-> reponame \-> CustomDesc.
+.TP
+.BR "menu\-updates " [ "\fIreponame" ]
+Abbreviation:
+.B mu
+.br
+Show all packages having a different version available in specified
+repository. You can select which packages to install from a dialog based
+menu. This is equivalent to selecting Repositories \-> reponame \->
+Updates. Note that this command does not automatically update the repository
+database; use
+.B update
+for that.
+.TP
+.BI "menu\-dir " directory
+Abbreviation:
+.B d
+.br
+Show a dialog based menu of the packages in the specified directory. You
+will be prompted for how to filter the package list. This is equivalent to
+selecting Directory from the main menu.
+.PP
+.B NON-INTERACTIVE REPOSITORY COMMANDS
+.TP
+.B list
+Abbreviation:
+.B l
+.br
+Lists repository names and their addresses.
+.TP
+.BI "add " reponame " " address
+Adds a new repository.
+.I reponame
+can contain up to 16 characters which can be letters or numbers or
+underscores.
+.I address
+can be absolute path (begins with a slash) or HTTP or FTP URL (beginning
+with http:// or ftp://). The speficied directory must contain the properly
+formatted files FILELIST.TXT and PACKAGES.TXT. The repository is
+spitted in disksets if it contains packages in directory
+.BR slackware/a .
+Otherwise all the packages will be shown in a one list. See
+.BR slackrepo (1)
+for information about creating your own repositories.
+.TP
+.BI "delete " reponame
+Deletes a repository. As with all the other non-interactive commands, no
+confirmation is asked.
+.TP
+.BI "rename " reponame " " newname
+Renames a repository. See command
+.B add
+for limitations of repository name.
+.TP
+.BI "address " reponame " " newaddress
+Change repository address to
+.IR newaddress .
+See command
+.B add
+for information about address format.
+.TP
+.BR update " [\fIreponame\fR]"
+Abbreviation:
+.B u
+.br
+Update repository database. This means downloading FILELIST.TXT and
+PACKAGES.TXT from repository address and processing them to them repository
+database files.
+.TP
+.BI "search \fR[" reponame "\fR] " search_regex
+Abbreviation:
+.B s
+.br
+List package names one per line from repository
+.I reponame
+matching regular expression
+.IR search_regex .
+The installed package version is shown in parenthesis.
+.TP
+.BI "search\-desc \fR[" reponame "\fR] " search_regex
+Abbreviation:
+.B sd
+.br
+List package names one per line from repository
+.I reponame
+whose description matches regular expression
+.IR search_regex .
+The installed package version is shown in parenthesis.
+.TP
+.BI "install \fR[" reponame "\fR] " package_name
+Abbreviation:
+.B i
+.br
+Install a package.
+.I package_name
+can be package basename (foo-bar), basename with version (foo-bar-0.12),
+or full package name (foo-bar-0.12-i486-1barney).
+.TP
+.BI "list\-updates \fR[" reponame "\fR]"
+Abbreviation:
+.B lu
+.br
+List packages that have a different version available than those that are 
+currently installed.
+.TP
+.BI "install\-updates \fR[" reponame "\fR]"
+Abbreviation:
+.B iu
+.br
+Install all the packages that have a different version available than those
+that are currently installed. Use
+.B list\-updates
+to view the list of packages that this command would update. As with all
+the other non-interactive commands, no confirmation is asked.
+.B Use with care!
+
+.SH CONFIGURATION FILE
+.B /etc/pkgtools/config
+is the configuration file for
+.B pkgtool
+and other tools in the pkgtools package. Currently supported options and
+their default values are:
+.TP
+.B PACKAGE_CACHE_DIR="/var/cache/packages"
+Directory to store downloaded packages. If directory does not exist or
+is a non-directory, it is silently deleted (rm \-rf) and then created.
+For security reasons (avoiding symlink attacks) this directory should be
+writeable only by trusted people.
+.TP
+.B KEEP_DOWNLOADED=1
+If you want packages installed from the Internet to be removed after
+installation, change this to KEEP_DOWNLOADED=0. By default downloaded
+packages are left to the package cache directory.
+.TP
+.B WGET_FLAGS="\-\-passive\-ftp"
+Parameters to pass to wget. See man page wget(1) for more information.
+.TP
+.B BLACKLIST_FILE="/etc/pkgtools/blacklist"
+The file containing the list of the blacklisted packages. If the specified
+file does not exists this option is silently ignored. The blacklist file
+should contain one package basename (not fullname) per line. All invalid
+lines are silently ignored. Note that blacklist is only used by
+pkgtool, not installpkg or upgradepkg.
+.TP
+.B VERIFY_GPG_DOWNLOADED=0
+When this option is turned on (default: off), no downloaded package
+without a valid signature will be installed with
+.B installpkg
+or
+.B upgradepkg
+unless
+.B \-\-no\-gpg
+command line option is used. Note that this option is used only by
+.B installpkg
+and
+.BR upgradepkg ;
+.B pkgtool
+has its own per repository configuration for GPG usage. The trusted keys
+should be in
+.BR /root/.gnupg/pubring.gpg .
+.TP
+.B VERIFY_GPG_LOCAL=0
+When this option is turned on (default: off), no local package (i.e.
+no HTTP or FTP URL) without a valid signature is installed. Note that
+this option is used only by
+.B installpkg
+and
+.BR upgradepkg ;
+.B pkgtool
+has its own per repository configuration for GPG usage.
+
+.SH AUTHORS
+Original by Patrick J. Volkerding <volkerdi@slackware.com>
+.PP
+Revised for Tukaani Linux by Lasse Collin <lasse.collin@tukaani.org>
+and Ville Koskinen <w\-ber@iki.fi>
+
+.SH "SEE ALSO"
+.BR pkgtool (8),
+.BR installpkg (8),
+.BR removepkg (8),
+.BR upgradepkg (8),
+.BR viewpkg (1),
+.BR explodepkg (1),
+.BR makepkg (1),
+.BR convertpkg (1),
+.BR slackrepo (1),
+.BR wget (1)

@@ -1,0 +1,399 @@
+#!/bin/sh
+#
+# See the file `COPYRIGHT' for copyright and license information.
+#
+# Load shared functions:
+. /usr/share/pkgtools/functions.common.sh
+include download
+include gnupg
+include dotnew
+include pkgtool_misc
+include pkgtool_repository
+include pkgtool_viewremove
+
+check_is_run_by_root
+
+DIALOGOPTS='--backtitle "Tukaani pkgtools @VERSION@"'
+export DIALOGOPTS
+
+is_url_dir() {
+  case "$1" in ('http://'*|'https://'*|'ftp://'*) return 0 ;; esac
+  return 1
+}
+
+show_info() {
+  case "$MODE" in
+    dialog)   dialog --title "$2" --infobox "$1" 3 $((${#1} + 4)) ;;
+    cmdline)  echo -e "$1" ;;
+    quiet)    ;;
+  esac
+}
+
+show_msg() {
+  case "$MODE" in
+    dialog)   dialog --title "$2" --msgbox "$1" 5 $((${#1} + 6)) ;;
+    cmdline)  echo -e "$1" ;;
+    quiet)    ;;
+  esac
+}
+
+show_textmode_error_message() {
+  echo
+  echo "An error occurred. Press enter to return to pkgtool menu."
+  read REPLY
+}
+
+diskset_description() {
+# $1 = diskset name
+  local DISKSETDESCRIPTION
+  DISKSETDESCRIPTION=$(grep -i "^$1 " "$DISKSET_INFO")
+  [ "$DISKSETDESCRIPTION" = "" ] && DISKSETDESCRIPTION="$1 \"\" \"\" \\"
+  echo "$DISKSETDESCRIPTION"
+}
+
+tools_check() {
+# $1 = command to check
+  echo -n "    $1:"
+  I=$((10 - ${#1} - ${#2}))
+  while [ $I -gt 0 ]; do
+    echo -n ' '
+    I=$(($I - 1))
+  done
+  which "$1" 2> /dev/null
+  [ $? != 0 ] && echo "Not found"
+}
+
+tools() {
+  echo
+  echo "Checking for installed helper applications:"
+  echo
+  echo "The very basic coreutils (e.g. ln, mv, mkdir) are not checked."
+  echo
+  echo "Required:"
+  echo -n "    tar-1.13:  "
+  TAR=tar-1.13
+  $TAR --help 1> /dev/null 2> /dev/null
+  [ $? != 0 ] && TAR=tar
+  if [ ! "`LC_MESSAGES=C $TAR --version`" = "tar (GNU tar) 1.13
+
+Copyright (C) 1988, 92,93,94,95,96,97,98, 1999 Free Software Foundation, Inc.
+This is free software; see the source for copying conditions.  There is NO
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+Written by John Gilmore and Jay Fenlason." ]; then
+    echo "Not found"
+  else
+    which $TAR
+  fi
+  tools_check sed
+  tools_check grep
+  tools_check sort
+  tools_check paste
+  tools_check comm
+  tools_check mktemp
+  tools_check gzip
+  echo
+  echo "Recommended:"
+  tools_check lzma
+  tools_check bzip2
+  tools_check gpgv
+  tools_check dialog
+  echo
+  echo "For network support:"
+  tools_check wget
+  echo
+  echo "Additional tools for explodepkg to extract .rpm and .deb packages:"
+  tools_check dd
+  tools_check od
+  tools_check cpio
+  tools_check ar
+  echo
+}
+
+cmdline_does_repository_exist() {
+  if [ -z "$1" -o ! -d "$REPO_DIR/$1" ]; then
+    echo "No repository exist with nickname '$1'."
+    exit_pkgtool 1
+  fi
+  REPOURI=$(cat "$REPO_DIR/$1/address")
+}
+
+cmdline_not_enough_arguments() {
+  echo "Error: Not enough arguments."
+  exit_pkgtool 99
+}
+
+exit_pkgtool() {
+  rm -f "$TMP/reply" "$TMP/tmpscript" "$TMP/tmpanswer" "$TMP/tmpargs"
+  [ "$NO_PID_FILE_CHECK" != "yes" ] && rm -f "$TMP/pkgtool.pid"
+  exit $1
+}
+
+usage() {
+  cat << "EOF"
+
+Usage: pkgtool [options] [command [command-arguments]]
+
+Options:  -R dir,         Use a different root directory. This option
+          --root dir      overrides the $ROOT environment variable.
+
+          -q, --quiet     Suppress messages except wget progress bar.
+
+Commands: check           Check for basic integrity of package database
+                          and report problems found.
+
+          purge           Empty the cache directory of downloaded packages.
+
+          tools           Report which helper applications are installed.
+
+          setup <source> <root_device>
+                          Start the Slackware or Tukaani installation to
+                          the directory specified by --root or $ROOT.
+                          Root device means the device on which the target
+                          root filesystem is. E.g. /dev/hda1
+
+Interactive repository commands:
+          menu [reponame] <search_regex>
+          menu-desc [reponame] <search_regex>
+          menu-updates [reponame]
+          menu-dir [directory]
+          menu-repos
+
+Non-interactive repository commands i.e. they ask nothing from the user:
+          list
+          add <reponame> <address> [gpg]
+          delete <reponame>
+          rename <reponame> <newname>
+          address <reponame> <newaddress>
+          gpg <reponame> <yes|no>
+          update [reponame]
+          search [reponame] <search_regex>
+          search-desc [reponame] <search_regex>
+          install [reponame] <full_package_name>
+          list-updates [reponame]
+          install-updates [reponame]
+
+If [reponame] is omitted the first repository in alphabetic order is used.
+If no command is specified pkgtool starts with the interactive dialog mode.
+
+EOF
+  exit_pkgtool 0
+}
+
+# Default to dialog UI:
+MODE=dialog
+
+# Process command line options:
+ARGS=$(getopt -n pkgtool -o +qR:h -l quiet,root:,nopid,help -- "$@")
+[ $? != 0 ] && exit 99
+eval set -- "$ARGS"
+unset ARGS NO_PID_FILE_CHECK PKGTOOL_AS_INSTALLER
+if [ $# != 0 ]; then
+  while [ $# != 0 ]; do
+    case "$1" in
+      -R|--root)    check_root_dir_exists "$2"; ROOT=$2; shift 1 ;;
+      -q|--quiet)   MODE=quiet ;;
+      --no-pid)     NO_PID_FILE_CHECK=yes ;; # Undocumented, use with caution
+      -h|--help)    usage ;;
+      --)           shift 1; break ;;
+      *)            exit_getopt_error
+    esac
+    shift 1
+  done
+fi
+
+# Set some variables that depend on command line options above:
+initialize_variables_and_package_database
+LOG=$TMP/PKGTOOL.REMOVED
+DISKSET_INFO="/usr/share/pkgtools/disksets.txt"
+
+if [ "$NO_PID_FILE_CHECK" != "yes" ]; then
+  # Check for PID file. To avoid problems like repository corruption,
+  # pkgtool shouldn't be run more than one session at time.
+  if [ -f "$TMP/pkgtool.pid" ]; then
+    REPLY=$(cat "$TMP/pkgtool.pid")
+    if [ -d "/proc/$REPLY" ] && $(grep -q pkgtool "/proc/$REPLY/cmdline"); then
+      echo
+      echo "Error: pkgtool is already running (PID $REPLY)."
+      echo "You cannot start more than one session of pkgtool."
+      echo
+      exit 99
+    fi
+  fi
+  # Store the new PID:
+  rm -f "$TMP/pkgtool.pid"
+  echo $$ > "$TMP/pkgtool.pid"
+fi
+
+# Process commands:
+if [ $# != 0 ]; then
+  [ "$MODE" = "dialog" ] && MODE=cmdline
+  case "$1" in
+    help)
+      usage
+      ;;
+    list|l) # Shortcut: list == l
+      for I in $(ls -1 "$REPO_DIR" 2> /dev/null); do
+        echo "$I - $(cat "$REPO_DIR/$I/address")"
+      done
+      ;;
+    add)
+      [ -z "$3" ] && cmdline_not_enough_arguments
+      if repository_validate_nickname "$2" && repository_validate_uri "$3"; then
+        mkdir -m 0755 -p "$REPO_DIR/$2"
+        repository_set_address "$2" "$3"
+        [ "$4" = "gpg" -o "$4" = "yes" ] && : > "$REPO_DIR/$2/gpg"
+        show_msg "Repository '$2' added."
+      fi
+      ;;
+    delete)
+      cmdline_does_repository_exist "$2"
+      if repository_validate_nickname "$2" "$2"; then
+        rm -rf "$REPO_DIR/$2"
+        show_msg "Repository '$2' deleted."
+      fi
+      ;;
+    rename)
+      [ -z "$3" ] && cmdline_not_enough_arguments
+      cmdline_does_repository_exist "$2"
+      if repository_validate_nickname "$3"; then
+        ( cd "$REPO_DIR" && mv "$2" "$3" )
+        show_msg "Repository '$2' renamed to '$3'."
+      fi
+      ;;
+    address)
+      [ -z "$3" ] && cmdline_not_enough_arguments
+      cmdline_does_repository_exist "$2"
+      repository_validate_uri "$3" && repository_set_address "$2" "$3"
+      show_msg "Repository '$2' address changed."
+      ;;
+    gpg)
+      [ -z "$3" ] && cmdline_not_enough_arguments
+      cmdline_does_repository_exist "$2"
+      case "$3" in
+        1|yes)
+          : > "$REPO_DIR/$2/gpg"
+          show_msg "Enabled GPG support in repository '$2'."
+          ;;
+        0|no)
+          rm -f "$REPO_DIR/$2/gpg"
+          show_msg "Disabled GPG support in repository '$2'."
+          ;;
+      esac
+      ;;
+    update|u) # Shortcut: update == u
+      [ -z "$2" ] && set -- "$1" "$(ls -1 "$REPO_DIR" | sed -n '1{p;q}')"
+      repository_update "$2"
+      ;;
+    menu-dir|d) # Shortcut: menu-dir == d
+      [ -z "$2" ] && set -- "$1" "."
+      if [ ! -d "$2" ]; then
+        show_msg "The directory does not exist or is not a directory: $2"
+      else
+        MODE=dialog
+        install_packages "$2"
+      fi
+      ;;
+    search|search-desc|menu|menu-desc|install|s|sd|m|md|i)
+      [ -z "$2" ] && cmdline_not_enough_arguments
+      [ -z "$3" ] && set -- "$1" "$(ls -1 "$REPO_DIR" | sed -n '1{p;q}')" "$2"
+      cmdline_does_repository_exist "$2"
+      repository_create_updatelist "$2" CustomName # In repository_create_updatelist CustomName == CustomDesc
+      CUSTOM_FILTER=$3
+      case "$1" in
+        search|s) # Shortcut: search == s
+          repository_create_packagelist_script "$2" "singlelist" CustomName && \
+          paste -d ' ' "$TMP/$2.singlelist.1" "$TMP/$2.singlelist.2" \
+              | sed 's/ \([^(]\)/ (\1/;s/[^)]$/&)/' | sort -u
+          ;;
+        search-desc|sd) # Shortcut: search-desc == sd
+          repository_create_packagelist_script "$2" "singlelist" CustomDesc && \
+          paste -d ' ' "$TMP/$2.singlelist.1" "$TMP/$2.singlelist.2" \
+              | sed 's/ \([^(]\)/ (\1/;s/[^)]$/&)/' | sort -u
+          ;;
+        menu|m)
+          MODE=dialog
+          repository_browse "$2" "singlelist" "CustomName"
+          ;;
+        menu-desc|md) # Shortcut: menu-desc == md
+          MODE=dialog
+          repository_browse "$2" "singlelist" "CustomDesc"
+          ;;
+        install|i) # Shortcut: install == i
+          repository_create_packagelist_script "$2" "singlelist" CustomExactName && \
+          repository_actions_install "$2" install install_all
+          ;;
+      esac
+      rm -f "$TMP/$2."* "$REPO_DIR/$2/singlelist"
+      ;;
+    list-updates|menu-updates|install-updates|lu|mu|iu)
+      [ -z "$2" ] && set -- "$1" "$(ls -1 "$REPO_DIR" | sed -n '1{p;q}')"
+      cmdline_does_repository_exist "$2"
+      repository_create_updatelist "$2" Updates
+      if repository_create_packagelist_script "$2" "singlelist" Updates; then
+        case "$1" in
+          list-updates|lu) # Shortcut: list-updates == lu
+            paste -d ' ' "$TMP/$2.singlelist.1" "$TMP/$2.singlelist.2" \
+                | sed 's/ \([^(]\)/ (\1/;s/[^)]$/&)/'
+            ;;
+          menu-updates|mu) # Shortcut: menu-updates == mu
+            MODE=dialog
+            repository_browse "$2" "singlelist" Updates
+            ;;
+          install-updates|iu) # Shortcut: install-updates == iu
+            repository_actions_install "$2" install install_all
+            ;;
+        esac
+      fi
+      rm -f "$TMP/$2."* "$REPO_DIR/$2/singlelist"
+      ;;
+    setup)
+      # Source setup program functions. These are not included in the main pkgtool
+      # to keep it smaller. Setup functions use many functions from pkgtool so it
+      # is practical to keep it as a part of pkgtool and not make it a separate script.
+      include installer
+      # Some functions use this to finetune their behavior when the installer is used:
+      PKGTOOL_AS_INSTALLER=yes
+      # Start the main setup function:
+      slackinstall_main "$2" "$3" "$4" # $2 = Source path/URL ; $3 = root device (e.g. /dev/hda1) ; $4 = GPG
+      ;;
+    purge)         purge_cache ;;
+    tools)         tools ;;
+    check)         integrity_check ;;
+    menu-repos|mr) repository_list ;; # Shortcut: menu-repos == mr
+    *)             echo "Unknown command '$1'. Type 'pkgtool --help' for list of commands."; exit_pkgtool 99 ;;
+  esac
+  exit_pkgtool $?
+fi
+
+# E.g. "pkgtool -q":
+[ "$MODE" != "dialog" ] && exit_pkgtool 1
+
+# Interactive (dialog) mode:
+MAIN_MENU_REPLY="QuickUpdate"
+while : ; do
+  dialog --title "Tukaani Package Tool" \
+--cancel-label Exit --default-item "$MAIN_MENU_REPLY" \
+--menu "\n Welcome to Tukaani package tool. Make your choice:" 16 76 8 \
+"QuickUpdate" "Shortcut to update repository database & view updates" \
+"Repositories" "Use and edit package repositories" \
+"Directory" "Install packages without creating a repository" \
+"Remove" "Remove packages that are currently installed" \
+"View" "View the list of files contained in a package" \
+"Setup" "Choose installation scripts to run again" \
+"Purge" "Empty the cache directory of downloaded packages" \
+"Check" "Check package database integrity and report errors found" \
+2> "$TMP/tmpanswer"
+  [ ! $? = 0 ] && exit_pkgtool 0
+  MAIN_MENU_REPLY=$(cat "$TMP/tmpanswer")
+  case "$MAIN_MENU_REPLY" in
+    QuickUpdate)    repository_list "Updates" ;;
+    Repositories)   repository_list ;;
+    Directory)      install_packages ;;
+    Remove)         remove_list ;;
+    View)           view_packages ;;
+    Setup)          setup_scripts ;;
+    Purge)          purge_cache ;;
+    Check)          integrity_check ;;
+  esac
+done

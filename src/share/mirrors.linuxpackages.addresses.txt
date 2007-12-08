@@ -1,0 +1,14 @@
+inode.at "Austria" http://linuxpackages.inode.at/ \
+scarlet.be "Belgium" http://ftp.scarlet.be/pub/linuxpackages/ \
+linuxpackages.telecoms.bg "Varna, Bulgaria" http://linuxpackages.telecoms.bg/ \
+nymphomatic.org "Croatia" http://www.nymphomatic.org/mirror/linuxpackages/ \
+slackware.hu "Hungary" ftp://ftp.slackware.hu/linuxpackages/ \
+naist.jp "Japan" http://ftp.naist.jp/pub/Linux/linuxpackages/ \
+opensys "Romania" http://opensys.linuxpackages.net/ \
+slackware.rol.ru "Moscow, Russia" http://slackware.rol.ru/linuxpackages/ \
+mirror.etf.bg.ac.yu "Belgrade, Serbia and Montenegro" http://mirror.etf.bg.ac.yu/linuxpackages/ \
+mirror2.etf.bg.ac.yu "Belgrade, Serbia and Montenegro" http://mirror2.etf.bg.ac.yu/linuxpackages/ \
+cgucccc.org "Taiwan" http://linuxpackages.cgucccc.org/ \
+software-mirror.com "Colorado, USA" http://www.software-mirror.com/linuxpackages/ \
+linuxpackages.net "New York, USA" http://www2.linuxpackages.net/packages/ \
+slackwaresupport.com "Tupelo, MS, USA" http://linuxpackages.slackwaresupport.com/ \

@@ -1,0 +1,48 @@
+--- tar-1.13.orig/src/common.h	1999-07-07 09:07:30.000000000 +0300
++++ tar-1.13/src/common.h	2005-11-18 00:27:16.000000000 +0200
+@@ -192,6 +192,9 @@
+    be interpreted as very low threshold, just usable as such.  */
+ GLOBAL time_t newer_mtime_option;
+ 
++/* Boolean value.  */
++GLOBAL int no_overwrite_dir_option;
++
+ /* Boolean value.  */
+ GLOBAL int no_recurse_option;
+ 
+--- tar-1.13.orig/src/tar.c	1999-07-07 08:49:50.000000000 +0300
++++ tar-1.13/src/tar.c	2005-11-18 00:45:00.000000000 +0200
+@@ -204,6 +210,7 @@
+   {"newer", required_argument, NULL, 'N'},
+   {"newer-mtime", required_argument, NULL, NEWER_MTIME_OPTION},
+   {"null", no_argument, NULL, NULL_OPTION},
++  {"no-overwrite-dir", no_argument, &no_overwrite_dir_option, 1},
+   {"no-recursion", no_argument, NULL, NO_RECURSE_OPTION},
+   {"numeric-owner", no_argument, &numeric_owner_option, 1},
+   {"old-archive", no_argument, NULL, 'o'},
+@@ -288,6 +295,7 @@
+   -W, --verify               attempt to verify the archive after writing it\n\
+       --remove-files         remove files after adding them to the archive\n\
+   -k, --keep-old-files       don't overwrite existing files when extracting\n\
++      --no-overwrite-dir     preserve metadata of existing directories\n\
+   -U, --unlink-first         remove each file prior to extracting over it\n\
+       --recursive-unlink     empty hierarchies prior to extracting directory\n\
+   -S, --sparse               handle sparse files efficiently\n\
+--- tar-1.13.orig/src/extract.c	1999-07-03 00:24:36.000000000 +0300
++++ tar-1.13/src/extract.c	2005-11-18 00:49:18.000000000 +0200
+@@ -885,7 +885,14 @@
+ 	      int saved_errno = errno;
+ 
+ 	      if (stat (CURRENT_FILE_NAME, &st1) == 0 && S_ISDIR (st1.st_mode))
+-		goto check_perms;
++		if (no_overwrite_dir_option)
++		  {
++		    break;
++		  }
++		else
++		  {
++		    goto check_perms;
++		  }
+ 
+ 	      errno = saved_errno; /* FIXME: errno should be read-only */
+ 	    }

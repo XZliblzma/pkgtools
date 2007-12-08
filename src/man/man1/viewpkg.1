@@ -1,0 +1,81 @@
+.TH VIEWPKG 1 "24 Dec 2005" "Tukaani Linux"
+.SH NAME
+viewpkg \- Show information about a package file
+
+.SH SYNOPSIS
+.B viewpkg
+.RI [ options ]
+.I package_filename
+.RI [ pkg_file_2 " ...]"
+
+.SH DESCRIPTION
+.B viewpkg
+takes one or more package files and prints information about them to the
+standard output. The fields shown can be specified using the
+.IR options .
+If no options are given
+.B viewpkg
+defaults to
+.BR "\-NsdFi".
+The fields are always shown in the same order: name, sizes, description,
+file list, installation script.
+.SH OPTIONS
+.TP
+.BR \-n ", " \-\-name
+Show the package filename including path in one line as specified on the
+command line.
+.TP
+.BR \-N ", " \-\-verbose-name
+Show the package filename and location in two lines.
+.TP
+.BR \-s ", " \-\-size
+Calculate and show the package compressed and uncompressed (disk usage when
+installed) sizes.
+.TP
+.BR \-d ", " \-\-description
+Show the package description. This is hopefully the most human readable
+format.
+.TP
+.BR \-D ", " \-\-verbose-description
+Show the package description with each description line prefixed with package 
+basename (i.e. like the description is written in
+.BR slack-desc ).
+.TP
+.BR \-R ", " \-\-raw-description
+Show the whole
+.B slack-desc
+file as is.
+.TP
+.BR \-f ", " \-\-filelist
+Show the list of files and directories in the package. This is equivalent to
+.B tar tf
+.IR package_filename .
+.TP
+.BR \-F ", " \-\-verbose-filelist
+Show the list of files and directories with ownership and permission
+information. This is equivalent to
+.B tar tvf
+.IR package_filename .
+.TP
+.BR \-i ", " \-\-installscript
+Show the package installation script
+.RB ( doinst.sh ).
+.TP
+.BR \-q ", " \-\-quiet
+Suppress headers and delimiters, thus making the output less human readable. 
+Can be useful in some scripts.
+
+.SH AUTHORS
+Lasse Collin <lasse.collin@tukaani.org>,
+Ville Koskinen <w\-ber@iki.fi>
+
+.SH "SEE ALSO"
+.BR pkgtool (8),
+.BR installpkg (8),
+.BR removepkg (8),
+.BR upgradepkg (8),
+.BR explodepkg (1),
+.BR makepkg (1),
+.BR convertpkg (1),
+.BR slackrepo (1),
+.BR tar (1)

@@ -1,0 +1,319 @@
+.TH MAKEPKG 1 "24 Dec 2005" "Tukaani Linux"
+.SH NAME
+makepkg \- make Slackware and Tukaani packages
+
+.SH SYNOPSIS
+.B makepkg
+.RB [ --linkadd\  < y | n >]
+.RB [ --chown\  < y | n >]
+.I packagename
+.SH DESCRIPTION
+.B makepkg
+creates a new Slackware/Tukaani compatible package. The package is
+constructed using the contents of the current directory and all
+subdirectories recursively. If symbolic links exist, they will be converted 
+to script code and then recreated when the package is installed. This code
+will be appended to the primary installation script
+.RB ( install/doinst.sh ),
+or, if that script does not exist, it will be created with those
+contents.  The package will be written out to the file
+.I packagename
+which should be the full name, including the extension.
+.PP
+.B makepkg
+can be used both as the root and a non-root user. The specialty in creating a
+package as non-root is that the ownership information of all files and
+directories in package are always set to root:root instead of the values
+on the filesystem. Permissions are still left as is unless
+.B -c\~y
+is specified.
+
+.SH OPTIONS
+.TP
+.BR "\-l " < y | n >, " --linkadd " < y | n >
+If y, add any symbolic links found to the install script (doinst.sh) and
+delete them.  This is the recommended action.  If this option is not used,
+makepkg will prompt if symbolic links are found.
+.TP
+.B \-p, --prepend
+If this option is given, any symbolic links about to be added to doinst.sh 
+will be prepended to the existing script.  This is useful for packages that 
+contain shared libraries that need to be linked first because programs 
+will use them later in the doinst.sh script.
+.TP
+.BR "\-c " < y | n >, " --chown " < y | n >
+If y, makepkg will reset all directory permissions to 0755 and all file
+permissions to 0755 or 0644 depending on the execute bit. All ownership
+information is set to to root:root. In general, you should have the
+permissions and ownerships worked out yourself, so relying on setting
+this option to y is somewhat sloppy. It is not the default. If an option
+is not provided, makepkg will prompt.
+.B Please note that the behavior of this option has changed from the
+.B original makepkg shipped in official Slackware Linux.
+
+.SH PACKAGE FILE FORMATS
+The created package is a tar archive created with
+.BR tar (1)
+version 1.13. The archive is usually compressed with
+.BR gzip (1),\  lzma\  or\  bzip2 (1)
+to achieve smaller file size. The compression method does not affect the
+uncompressed package (tar archive and its contents). Conversion between
+different package types can be simply done by decompressing and
+recompressing the package.
+.BR convertpkg (8)
+can be used to automate this process.
+.PP
+The list of currently supported compression
+formats and the corresponding package filename extensions:
+.TP
+.B .tgz
+gzip compressed tar archive. gzip compressed package is both fast to
+create and install with very small memory requirements. tar+gzip is the
+only package format used and supported by the Slackware Linux
+distribution (latest release being version 10.1 at the time of
+writing). You should use this format if you plan to use the created
+packages in a Slackware machine without upgrading to the enhanced pkgtools
+from Tukaani Linux.
+.TP
+.B .tlz
+LZMA compressed tar archive. LZMA gives the best compression ratio
+creating approximately 30% smaller packages on average than
+gzip. Package creation with default settings is very slow and requires
+about 83\~MB of memory. Installation (decompression) process is still
+quite fast and memory requirements are around 9\~MB when the package is
+compressed with the default compression settings. The compression
+settings can be modified only by editing the makepkg script but it is
+usually neither required nor recommended. LZMA is available at
+http://7-zip.org/sdk.html and it is licensed under the LGPL.
+.TP
+.B .tbz
+bzip2 compressed tar archive. This format gives better compression ratio
+than gzip but not as good as LZMA. Creating bzip2 compressed packages is
+slower than with gzip but faster than with LZMA. Installation is very
+slow compared to both gzip and LZMA. Memory requirements are 7.6\~MB for
+compression and 3.7\~MB for decompression. Because of intermediate
+compression ratio and slow decompression speed this format is generally
+not recommended.
+.TP
+.B .tar
+Uncompressed tar archive. Creating a tar archive and skipping the
+compression process entirely is naturally a very fast way to create and
+install a package but it is also a lot bigger than if the package had
+been compressed. In practice this is only useful when there is a need to
+quickly get a package installed and stored in the package database
+without storing the package for further use.
+
+.SH PACKAGE FILENAME
+Package filename should be chosen carefully. The filename consists of five
+fields which are separated with hyphens, except the extension which is
+separated with a dot. Allowed characters in fields are lower and upper
+case letters, numbers, plus, dot, comma, exclamation mark, underscore
+and the at-sign. As a regular expression:
+.RB [ a\-zA\-Z0\-9.!@_+ ]
+You should note that hyphens
+.RB ( \- )
+are only allowed as field separators and with some restrictions in the basename
+field.
+.TP
+.B Basename
+The name of the software you are packaging. As a special exception to the
+allowed characters list the basename field may contain hyphens
+.RB ( \- )
+as long as they are not the first or the last character.
+.TP
+.B Version number
+The version of the software you are packaging. If the original version
+number contains hyphens
+.RB ( \- )
+replace them with underscores
+.RB ( _ ).
+.TP
+.B Architechture
+This field indicates the lowest common denominator which the built
+package can be used. Generally this is the same as the \-march option
+passed to GCC. E.g. most Slackware packages are built with
+.B \-march=i486\~\-mcpu=i686
+so the architechture field contains
+.B i486\fR.
+If the package contains only architechture independent files
+(e.g. scripts or documentation) use
+.B noarch\fR.
+.TP
+.B Build version
+Sometimes it is needed to rebuild the package after first release even
+if the version number does not change. Incrementing the build version on
+every new package of the same software version makes it easy to know
+which version is the latest. It is recommended (but not mandatory) to
+add your own initials or some other identifier of the packager after the
+build version number. Main reason to this is to distinguish official and
+unofficial packages.
+.TP
+.B Filename extension
+The last four characters of the package filename should be
+.BR .tgz ", " .tlz ", " .tbz " or " .tar .
+The extension determines the package compression type; it does not
+affect the tar archive itself. See ``PACKAGE FILE FORMATS'' for more
+information.
+.PP
+.B EXAMPLES
+.TP
+.B foo\-0.1.23\-i486\-1me.tgz
+The first build of 'foo' version 0.1.23 by 'me' compiled using
+\-march=i486. The package is gzip compressed and therefore it can be
+used also by the original Slackware pkgtools. Of course this does not
+necessarily mean that the contents of the package would run as is on
+a pure Slackware installation.
+.TP
+.B bar\-doc@fi_FI\-20050225\-noarch\-3.tlz
+The 3rd official build of the package 'bar\-doc@fi_FI' (a Finnish
+language pack for software 'bar'). The package is compressed with LZMA.
+.TP
+.B BaZ!\-3.14_rc1\-athlonxp\-23Barney.tlz
+The 23rd build of 'BaZ!' version 3.14-rc1 compiled by 'Barney' using
+\-march=athlon\-xp and compressed with LZMA.
+
+.SH PACKAGE DESCRIPTION (slack-desc)
+The package description is stored in the file
+.BR ./install/slack\-desc .
+It consists of
+.BR "description lines" " and " "comment lines" "."
+Criteria for what lines are taken as description lines follow in the
+next paragraph. All the other lines are taken as comment lines which are
+not shown during installation nor are stored in the package database.
+.PP
+Every description line can be split into three parts:
+.BR "basename" ", " "delimiter" " and the actual " "description part" "."
+The basename must be identical to the basename field of the package
+filename. Delimiter is two characters: a colon and a space. The rest of
+the line is description part which can be 70 characters at maximum. Do
+not exceed this 70-character limit as even a one character longer
+descriptions will screw up the formatting in various places.
+.PP
+The old standard was that there must be exactly 11 description
+lines. Nowadays pkgtools handle description files having a varying number
+of description lines. In practice there can be zero to 13 description
+lines because 13 is the hardcoded limit in both Tukaani and Slackware
+pkgtools.
+.PP
+The first description line is special as it is shown in the package
+browser and other places where there is only room for a one line
+description. Common practice is to leave the second line empty (only
+basename part and a colon). The rest of the lines should contain the
+more detailed description.
+.PP
+For examples see slack-desc file inside some official package. You can use
+.BR explodepkg (1)
+to extract the package files to the current directory.
+
+.SH INSTALLATION SCRIPTS
+There are 3 types of installation scripts supported in the Slackware package
+system. 
+.TP
+The first is the 
+.B primary
+installation script. This is found in the subdirectory
+.B ./install
+and must have the name
+.B doinst.sh
+in order to be recognized. This (and other install scripts) should be written
+using the basic Bourne shell syntax recognized by the
+.B ash
+shell, since this is the shell that will be used to execute the script when
+installing from a Slackware install floppy. This is a common trap - beware of
+using
+.B bash
+syntax extensions, because the script will work fine when installed from the
+hard drive, but will bomb out when installed from floppy. If the package is
+for personal use, this isn't a problem. Be careful, though, if you plan to
+share your package with other users. The
+.B primary installation script
+is executed immediately after the package is installed with 
+.B installpkg, pkgtool, 
+or
+.B setup.
+.TP
+The second type of script is the
+.B configuration
+script. This is found in the subdirectory
+.B ./var/log/setup
+and must have a name that starts with
+.B setup.
+in order to be recongnized. An example is the timezone script: 
+.B /var/log/setup/setup.timeconfig. 
+These scripts are executed during the
+.B CONFIGURE
+phase of
+.B setup, 
+and are re-executed each time the user runs the
+.B CONFIGURE
+option from
+.B setup.
+Typically, the user will go through this phase of setup following the 
+installation of all the packages. Anything that needs to be interactive
+should go in one of these scripts to avoid halting the package installation
+process during 
+.B setup. 
+.TP
+The third type of script is the
+.B onlyonce
+script. Like the name suggests, these are executed only once after the package
+is installed, in contrast to the standard
+.B configuration
+script. These scripts are also found in the
+.B ./var/log/setup
+directory and must have a name that starts with
+.B setup., 
+but in addition the name must contain the string
+.B onlyonce.
+An example might be a script with the name 
+.B /var/log/setup/setup.onlyonce.testscript
+.B NOTE: This script type is deprecated. Do not use onlyonce scripts anymore.
+
+.SH COMPATIBILITY
+.B Note:
+As of writing this the latest released Slackware version is 10.2.
+.PP
+Tukaani enhanced pkgtools will be retained as compatible as possible with
+the official Slackware pkgtools. There are still two unavoidable things
+which break the otherwise (hopefully) perfect compatibility.
+.PP
+The method of making the symbolic link creation script is rewritten. The old
+symlink creation method has a fundamental limitation which makes it
+impossible to use special characters like spaces, dollar signs, single
+or double quotes etc. in any part of the symlink (location, name or
+target). The new method still creates scripts that are compatible with
+official Slackware pkgtools if possible, so the incompatibility will
+occur only when you create a package that contains some special
+character(s) in the symlink(s). The only problem with the new-way-created
+symlinks is that they are not recognized by the original
+.BR removepkg (8)
+and therefore are not deleted by it.
+.PP
+The other incompatibility is more obvious: other package formats than gzip 
+do not work as is with the official Slackware pkgtools. This problem can be
+circumvented easily by either creating only gzipped packages or by
+decompressing and recompressing the package to tgz; this process can be
+automated using
+.BR convertpkg (1).
+The latter method needs, of course, LZMA or bzip2 installed. LZMA tgz
+package can be downloaded from Tukaani package repository.
+
+.SH AUTHORS
+Original by Patrick J. Volkerding <volkerdi@slackware.com>
+.PP
+Revised for Tukaani Linux by Lasse Collin <lasse.collin@tukaani.org>
+and Ville Koskinen <w\-ber@iki.fi>
+
+.SH "SEE ALSO"
+.BR pkgtool (8),
+.BR installpkg (8),
+.BR removepkg (8),
+.BR upgradepkg (8),
+.BR viewpkg (1),
+.BR explodepkg (1),
+.BR convertpkg (1),
+.BR slackrepo (1),
+.BR tar (1),
+.BR gzip (1),
+.BR bzip2 (1),
+.BR lzma (1)

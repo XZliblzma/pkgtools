@@ -1,0 +1,1 @@
+slackware "Slackware Linux  [GPG signed]" \

@@ -1,0 +1,188 @@
+#!/bin/sh
+#
+# See the file `COPYRIGHT' for copyright and license information.
+#
+# Exit status:
+# 0 - All OK
+# 1 - File not found
+# 2 - Unknown package format
+# 5 - Error creating temporary directory
+# 99 - Invalid parameters, usage shown
+
+# Load shared functions:
+. /usr/share/pkgtools/functions.common.sh
+
+usage() {
+  cat << EOF
+
+Show information about a package file.
+
+Usage: viewpkg [options] package_file [package_file_2 ...]
+
+Options:
+    -n, --name                  File and path name in one line.
+    -N, --verbose-name          Filename and location in two lines.
+    -s, --size                  Compressed and uncompressed size.
+    -d, --description           Package description.
+    -D, --verbose-description   Package description including basename prefix.
+    -R, --raw-description       Show slack-desc file as is.
+    -f, --filelist              List files and directories in the package.
+    -F, --verbose-filelist      List with owner and permission information.
+    -i, --installscript         Show installation script.
+    -q, --quiet                 Supress headers and delimiters.
+    -h, --help                  Show this help.
+
+Output order is fixed: name, sizes, description, file list, installation script
+
+If no options are given viewpkg defaults to -NsdFi.
+
+EOF
+  exit 0
+}
+
+parse_package_contents() {
+  # $1 = package filename ; $2 = tar-flags
+  mknod "$TMP/fifo1" p
+  mknod "$TMP/fifo2" p
+  mknod "$TMP/fifo3" p
+  uncompress_pkg "$1" | tee "$TMP/fifo1" | tee "$TMP/fifo2" \
+      | $TAR xf - -C "$TMP" install > /dev/null 2> /dev/null &
+  wc -c < "$TMP/fifo1" | tr -d ' ' > "$TMP/fifo3" &
+  $TAR $2 "$TMP/fifo2" > "$TMP/filelist" 2> /dev/null
+  UNCOMPRESSED=$(cat "$TMP/fifo3")
+  wait # Wait for tar.
+  rm -f "$TMP/fifo1" "$TMP/fifo2" "$TMP/fifo3"
+}
+
+# Parse options:
+ARGS=$(getopt -n viewpkg -o nNdDRsfFiqh \
+  -l name,verbose-name,description,verbose-description,raw-description \
+  -l size,filelist,verbose-filelist,installscript,quiet,help -- "$@")
+[ $? != 0 ] && exit 99
+eval set -- "$ARGS"
+unset ARGS NAME DESCRIPTION SIZES FILELIST SCRIPT QUIET
+while : ; do
+  case "$1" in
+    -n|--name)                  NAME=normal ;;
+    -N|--verbose-name)          NAME=verbose ;;
+    -d|--description)           DESCRIPTION=normal ;;
+    -D|--verbose-description)   DESCRIPTION=verbose ;;
+    -R|--raw-description)       DESCRIPTION=raw ;;
+    -s|--size)                  SIZES=yes ;;
+    -f|--filelist)              FILELIST=normal ;;
+    -F|--verbose-filelist)      FILELIST=verbose ;;
+    -i|--installscript)         SCRIPT=yes ;;
+    -q|--quiet)                 QUIET=yes ;;
+    -h|--help)                  usage ;;
+    --)                         shift 1; break ;;
+    *)                          exit_getopt_error ;;
+  esac
+  shift 1
+done
+[ $# = 0 ] && usage
+# If no options were given, show all information:
+if [ "$NAME$DESCRIPTION$SIZES$FILELIST$SCRIPT$QUIET" = "" ]; then
+  NAME=verbose
+  DESCRIPTION=normal
+  SIZES=yes
+  FILELIST=verbose
+  SCRIPT=yes
+fi
+
+EXITSTATUS=0
+
+# Temporary directory for parse_package_contents():
+TMP=$(mktemp -dt viewpkg.XXXXXX)
+if [ $? != 0 ]; then
+  echo "Error creating temporary directory."
+  exit 5
+fi
+trap "rm -rf \"$TMP\"" INT
+
+while [ $# != 0 ]; do
+  # First check that we have been given something we can understand:
+  if [ ! -f "$1" ]; then
+    echo
+    echo "File not found: $1"
+    EXITSTATUS=1
+  elif [ "$(package_type "$1")" = "" ]; then
+    echo
+    echo "Package type unknown: $1"
+    EXITSTATUS=2
+  else
+    # Check if we need to uncompress the package to find out
+    # all the requested information:
+    if [ \( "$(package_type "$1")" = "tgz" -a -n "$DESCRIPTION$FILELIST$SCRIPT" \) -o \
+        \( "$(package_type "$1")" != "tgz" -a -n "$DESCRIPTION$FILELIST$SCRIPT$SIZES" \) ]; then
+      if [ "$FILELIST" = "verbose" ]; then
+        parse_package_contents "$1" tvf
+      else
+        parse_package_contents "$1" tf
+      fi
+    fi
+
+    # File exists and has a known extension, let's show the requested information:
+    # Package name:
+    [ -z "$QUIET" -a -n "$NAME$SIZES$DESCRIPTION" ] && echo
+    if [ "$NAME" = "normal" ]; then
+      echo "$1"
+    elif [ "$NAME" = "verbose" ]; then
+      if [ -z "$QUIET" ]; then
+        echo "PACKAGE NAME:      $(basename "$1")"
+        echo "PACKAGE LOCATION:  $(dirname "$1")"
+      else
+        echo "$(basename "$1")"
+        echo "$(dirname "$1")"
+      fi
+    fi
+    # Sizes:
+    if [ "$SIZES" = "yes" ]; then
+      # With gzipped packages we can cheat. We could do the same with LZMA
+      # files but only if they had been created in non-streamed mode which
+      # is not the case with pkgtools.
+      if [ "$(package_type "$1")" = "tgz" ]; then
+        UNCOMPRESSED=$(gzip -l "$1" | sed -n '2{s/^ *[0-9]* *\([0-9]*\) *.*$/\1/p;q}')
+      fi
+      UNCOMPRESSED=$(($UNCOMPRESSED / 1024))
+      COMPRESSED=$(($(ls -lL "$1" | tr -s ' ' | cut -f 5 -d ' ') / 1024))
+      if [ -z "$QUIET" ]; then
+        printf "PACKAGE SIZE (compressed):    %6d K\n" "$COMPRESSED"
+        printf "PACKAGE SIZE (uncompressed):  %6d K\n" "$UNCOMPRESSED"
+      else
+        echo "$COMPRESSED"
+        echo "$UNCOMPRESSED"
+      fi
+    fi
+    # Description (slack-desc):
+    [ -n "$DESCRIPTION" -a -z "$QUIET" ] && echo "PACKAGE DESCRIPTION:"
+    if [ ! -f "$TMP/install/slack-desc" ]; then
+      : # No description file, do nothing.
+    elif [ "$DESCRIPTION" = "normal" ]; then
+      uniq "$TMP/install/slack-desc" \
+          | sed '/^[^: ]*:/!d
+              s/^[^: ]*: \{0,1\}//
+              ${
+                /^ *$/d
+              }'
+    elif [ "$DESCRIPTION" = "verbose" ]; then
+      sed '/^[^: ]*:/!d' "$TMP/install/slack-desc"
+    elif [ "$DESCRIPTION" = "raw" ]; then
+      cat "$TMP/install/slack-desc"
+    fi
+    # File list:
+    [ -n "$FILELIST" -a -z "$QUIET" ] && echo -e '\nFILE LIST:'
+    [ "$FILELIST" = "verbose" ] && cat "$TMP/filelist"
+    [ "$FILELIST" = "normal" ] && sort "$TMP/filelist"
+    # Installation script (doinst.sh):
+    [ -n "$SCRIPT" -a -z "$QUIET" ] && echo -e '\nINSTALLATION SCRIPT:'
+    [ "$SCRIPT" = "yes" -a -f "$TMP/install/doinst.sh" ] && cat "$TMP/install/doinst.sh"
+  fi
+  rm -f "$TMP/filelist" "$TMP/install/slack-desc" "$TMP/install/doinst.sh"
+  shift 1
+  [ $# != 0 -a -z "$QUIET" ] && echo -e '\n---'
+done
+
+[ -z "$QUIET" ] && echo
+
+rm -rf "$TMP"
+exit $EXITSTATUS

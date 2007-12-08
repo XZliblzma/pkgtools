@@ -1,0 +1,279 @@
+#!/bin/sh
+#
+# See the file `COPYRIGHT' for copyright and license information.
+#
+
+# Load shared functions:
+. /usr/share/pkgtools/functions.common.sh
+
+# Disable pathname expansion:
+set -f
+# Set internal field separator to <newline>:
+IFS='
+'
+# Do not overwrite existing files with '>'.
+set -C
+
+usage() {
+  cat << EOF
+
+Creates a Tukaani/Slackware compatible package with the contents of the
+current directory and all subdirectories. If symbolic links exist, they will
+be removed and an installation script will be made to recreate them later.
+This script will be called "install/doinst.sh". You may add any of your own
+ash-compatible shell scripts to this file and rebuild the package if you wish.
+
+Usage: makepkg [options] package_filename
+
+Options: -l, --linkadd y|n   Move symlinks into doinst.sh (recommended).
+
+         -p, --prepend       Prepend rather than append symlinks to an
+                             existing doinst.sh. This is useful for packages
+                             that contain shared libraries that need to be
+                             linked first because programs will use them
+                             later in the doinst.sh script.
+
+         -c, --chown y|n     Reset all permissions to root:root 0755 or 0644.
+                             Packages created as a regular user will always
+                             have files owned by root:root but permissions
+                             are not touched unless this option is specified.
+
+If these options are not set, makepkg will prompt when appropriate.
+
+EOF
+  exit 0
+}
+
+# Parse options
+ARGS=$(getopt -n makepkg -o l:c:pmh \
+  -l linkadd:,chown:,chmod:,prepend,help \
+  -- "$@")
+[ $? != 0 ] && exit 99
+eval set -- "$ARGS"
+unset LINKADD CHOWN PREPEND
+while : ; do
+  case "$1" in
+    -l|--linkadd)   case "$2" in
+                      y|yes) LINKADD=y ;;
+                      n|no)  LINKADD=n ;;
+                      *) echo "Error: $1 needs argument 'y' or 'n'."; exit 99;;
+                    esac
+                    shift 2
+                    ;;
+    -c|--chown)     case "$2" in
+                      y|yes) CHOWN=y ;;
+                      n|no)  CHOWN=n ;;
+                      *) echo "Error: $1 needs argument 'y' or 'n'."; exit 99;;
+                    esac
+                    shift 2
+                    ;;
+    -p|--prepend)   PREPEND=y; shift 1 ;;
+    -m|--no-md5)    CREATE_SLACK_MD5=n ;;
+    -h|--help)      usage ;;
+    --)             shift 1; break ;;
+    *)              exit_getopt_error ;;
+  esac
+done
+# We should have exactly one argument left which should be the package name:
+if [ $# != 1 ]; then
+  echo "Too many command line arguments."
+  exit 99
+fi
+
+PKG_TYPE=$(package_type "$1")
+if [ -z "$PKG_TYPE" ]; then
+  echo "Error: Package name must end with '.tgz', '.tlz', '.tbz' or '.tar'."
+  exit 1
+fi
+
+TMP=$(mktemp -dt makepkg.XXXXXX)
+if [ $? != 0 ]; then
+  echo "Fatal error: Unable to create a temporary directory."
+  exit 1
+fi
+# Make sure the temporary directory gets removed if the user presses Ctrl-c:
+trap "rm -rf \"$TMP\"; echo; exit 1" INT TERM
+
+echo
+echo "Searching for symbolic links:"
+DOINST_TMP="$TMP/doinst.tmp"
+rm -f "$DOINST_TMP"
+for I in $(find . -type l); do
+  LINKFULLNAME=$(echo "$I" | sed "s,^\./,,;s,','\\\\'',g")
+  LINKGOESIN=$(dirname "$I" | sed 's,^\./,,')
+  LINKNAMEIS=$(basename "$I" | sed 's,^\./,,')
+  LINKPOINTSTO=$(readlink "$I" | sed "s,','\\\\'',g")
+  echo "$I -> $(readlink "$I")"
+  # Check if quoting is needed:
+  if [ "$(echo -e "$LINKFULLNAME\n$LINKPOINTSTO" \
+        | sed -n '/^-/p;/^[a-zA-Z0-9.,_@=:/{}%+-]*$/!p')" != "" ]; then
+    # Quoting is required. This will break compatibility with the original
+    # Slackware removepkg. We will add '#Symlink#' to the end of the line
+    # to make it easier for Tukaani removepkg to detect them.
+    echo "rm -rf -- '$LINKFULLNAME' #Symlink#" >> "$DOINST_TMP"
+    echo "ln -sf -- '$LINKPOINTSTO' '$LINKFULLNAME'" >> "$DOINST_TMP"
+  else
+    # No quoting is needed and we can safely create the script in the old compatible way:
+    echo "( cd $LINKGOESIN ; rm -rf $LINKNAMEIS )" >> "$DOINST_TMP"
+    echo "( cd $LINKGOESIN ; ln -sf $LINKPOINTSTO $LINKNAMEIS )" >> "$DOINST_TMP"
+  fi
+done
+
+echo
+if [ -f "$DOINST_TMP" ]; then
+  echo "The symbolic link creation script:"
+  cat "$DOINST_TMP"
+  echo
+  if [ -r install/doinst.sh ]; then
+    echo "Unless your existing installation script already contains the code"
+    echo "to create these links, you should append these lines to your existing"
+    echo "install script. Now's your chance. :^)"
+    echo
+    echo "Would you like to add this stuff to the existing install script and"
+    echo -n "remove the symbolic links? [Y/n] "
+  else
+    echo "It is recommended that you make these lines your new installation script."
+    echo
+    echo "Would you like to make this stuff the install script for this package"
+    echo -n "and remove the symbolic links? [Y/n] "
+  fi
+  if [ -z "$LINKADD" ]; then
+    read LINKADD
+  else
+    echo "$LINKADD"
+  fi
+  echo
+  if [ "$LINKADD" != "n" ]; then
+    if [ -f install/doinst.sh ]; then
+      if [ "$PREPEND" = "y" ]; then
+        echo "Updating your ./install/doinst.sh (prepending symlinks)..."
+        touch install/doinst.sh
+        rm -f install/doinst.sh.shipped
+        mv install/doinst.sh install/doinst.sh.shipped
+        mv "$DOINST_TMP" install/doinst.sh
+        echo >> install/doinst.sh
+        cat install/doinst.sh.shipped >> install/doinst.sh
+        rm -f install/doinst.sh.shipped
+      else
+        echo "Updating your ./install/doinst.sh..."
+        echo >> install/doinst.sh
+        cat "$DOINST_TMP" >> install/doinst.sh
+        rm -f "$DOINST_TMP"
+      fi
+    else
+      echo "Creating your new ./install/doinst.sh..."
+      mkdir -p install
+      mv "$DOINST_TMP" install/doinst.sh
+    fi
+    echo
+    echo "Removing symbolic links:"
+    find . -type l -print0 | xargs -0r rm -v
+  fi
+else
+  echo "No symbolic links were found, so we won't make an installation script."
+  echo "You can make your own later in ./install/doinst.sh and rebuild the"
+  echo "package if you like."
+fi
+
+echo
+echo "This next step is optional - you can set the files and directories in"
+echo "your package to some sane permissions. If any of the files or dirs in"
+echo "your package have special permissions, then DO NOT reset them here!"
+echo
+echo "Would you like to reset all directory and file permissions and set"
+echo -n "their ownerships to root:root? [y/N] "
+if [ ! "$CHOWN" ]; then
+  read CHOWN
+else
+  echo "$CHOWN"
+fi
+if [ "$CHOWN" = "y" ]; then
+  [ "$UID" = "0" ] && chown -Rv root:root .
+  echo
+  find . -type d -print0 | xargs -0r chmod -v 0755
+  find . -type f -perm +0111 -print0 | xargs -0r chmod -v 0755
+  find . -type f \! -perm +0111 -print0 | xargs -0r chmod -v 0644
+fi
+
+# if [ "$CREATE_SLACK_MD5" != "n" ]; then
+#   echo
+#   echo "Calculating MD5 sums..."
+#   echo
+#   find . -type f \! -type l \! -name '*.new' \
+#       \! -path './install/*' \! -path './var/*' \! -path './etc/*' -print0 \
+#       | xargs -0r md5sum \
+#       | sed -u 's# \./# #' \
+#       > "$TMP/md5"
+#   rm -f install/slack-md5
+#   cat "$TMP/md5" > install/slack-md5
+# fi
+
+echo
+echo "Creating the package file..."
+echo
+
+PKG=$1
+PKG_FINAL=$1
+if [ "$(cd "$(dirname "$PKG")"; pwd)" = "$PWD" ]; then
+  # Tukaani makepkg pipes the output of tar to compression program which
+  # puts the file to the disk. That's why we cannot create packages inside
+  # the source tree anymore (tar-1.13 would include the package file too).
+  # This trick puts the temporary package to /tmp. The pacakge is moved to
+  # the requested place after package has been created.
+  PKG="$TMP/temporary_package"
+fi
+rm -f "$PKG" "$PKG_FINAL"
+
+if [ "$UID" = "0" ]; then
+  $TAR cvf - . | compress_pkg "$PKG_TYPE" > "$PKG"
+else
+  $TAR cvf - --owner=root --group=root . | compress_pkg "$PKG_TYPE" > "$PKG"
+fi
+if [ $? != 0 ]; then
+  echo
+  echo "Error creating the package file."
+  echo
+  rm -rf "$TMP"
+  exit 1
+fi
+
+# Warn of zero-length files:
+find . -type f -size 0c -exec echo "WARNING: zero length file {}" \;
+find . -type f -name '*.gz' -size 20c -exec echo "WARNING: possible empty gzipped file {}" \;
+
+# Warn if there is no package description (slack-desc):
+if [ ! -f install/slack-desc ]; then
+  echo
+  echo "WARNING: File ./install/slack-desc does not exist."
+  echo "         Package will have no description."
+fi
+
+echo
+if [ "$PKG" != "$PKG_FINAL" ]; then
+  echo "Moving $PKG to $PKG_FINAL..."
+  mv "$PKG" "$PKG_FINAL"
+else
+  echo "Package created: $PKG_FINAL"
+fi
+echo
+
+# Show information about package filename:
+if is_valid_package_name "$PKG_FINAL"; then
+  echo "Basename:        $(package_basename "$PKG_FINAL")"
+  echo "Version number:  $(package_version "$PKG_FINAL")"
+  echo "Minimum arch:    $(package_arch "$PKG_FINAL")"
+  echo "Build version:   $(package_buildversion "$PKG_FINAL")"
+  echo -n "Compression:     "
+  case "$(package_type "$PKG_FINAL")" in
+    tgz) echo "tgz (gzip compressed)" ;;
+    tlz) echo "tlz (LZMA compressed)" ;;
+    tbz) echo "tbz (bzip2 compressed)" ;;
+    tar) echo "tar (uncompressed)" ;;
+  esac
+else
+  echo "WARNING: Non-standard package name."
+fi
+echo
+
+# Remove the temporary directory:
+rm -rf "$TMP"

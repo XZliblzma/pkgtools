@@ -1,0 +1,102 @@
+.TH REMOVEPKG 8 "24 Dec 2005" "Tukaani Linux"
+.SH NAME
+removepkg \- remove Slackware and Tukaani packages.
+
+.SH SYNOPSIS
+.B removepkg
+.RB [ \-\-warn ]
+.RB [ \-\-verbose ]
+.RB [ \-\-quiet ]
+.RB [ "\-\-root \fI/otherroot" ]
+.I packagename
+.RI [ packagename2 ...]
+
+.SH DESCRIPTION
+.B removepkg
+removes a previously installed Slackware package, while writing a progress
+report to the standard output.  A package may be specified either by the
+full package name (as you'd see listed in /var/log/packages/), or by the
+base package name.  For example, the package foo-1.0-i386-1.tgz may be removed
+with any of the following commands:
+
+removepkg foo-1.0-i386-1.tgz
+
+removepkg foo-1.0-i386-1
+
+removepkg foo.tgz
+
+removepkg foo
+
+When deleting files,
+.B removepkg
+will analyze the contents of the other packages installed on your system, and
+will only delete the files that are unique to the package being removed. 
+Similarly, the installation scripts for all the other packages will be 
+considered when deciding whether or not to delete symbolic links from the
+package.
+.LP
+Removing a package (as well as installing one) can be a dangerous undertaking.
+For this reason, there is the
+.B \-\-warn
+option available. When you use this,
+.B removepkg
+will not actually remove any files or links, but will output a detailed report
+of what it would do if you actually did remove the package. It's suggested that
+you do this (and maybe pipe the output to 
+.B less
+) before removing packages to make sure you've backed up anything that might
+be important.
+.LP
+When removing a package, its original file index will be moved from 
+/var/log/packages to /var/log/removed_packages. Likewise, its installation
+script will be moved from /var/log/scripts to /var/log/removed_scripts.
+
+.SH OPTIONS
+.TP
+.B \-w, \-\-warn
+Generate a report to the standard output about which files and directories
+would be removed, but does not actually remove the package.
+.TP
+.B \-v, \-\-verbose
+List all the files being removed. Normally only warnings and errors are
+shown, e.g. if some files were not found.
+.TP
+.B \-q, \-\-quiet
+Hide all messages except the most fatal errors (which should never happen;).
+.TP
+.BI "\-R " /otherroot ", --root " /otherroot
+Remove the packages from a location other than / (the default) as the
+root of the filesystem. Setting the ROOT environment variable does the
+same thing.
+.SH BUGS
+If two packages have files that overlap, but the directory in the
+packages differ because of a symlink (or symlinks), removepkg deletes
+the overlapping file(s). I have experienced this bug once in practice
+but most people probably never have this problem. Triggering the bug
+seems to require using third party packages. Note that you will not
+experience this bug if you have a symlink like /opt->/usr/local/opt; the
+overlapping files in this case are needed.
+.PP
+Practical example: Make package foo which has the file /opt/foo/test.txt and
+the symlink /opt/bar->/opt/foo, and install the package. Make another
+package named bar which has the file /opt/bar/test.txt, and install this
+package too. Now we have installed two packages which have an
+overlapping file but with a different path. Remove the package foo and see
+how it removes also /opt/foo/test.txt even when the same file exists in
+package bar.
+.SH AUTHORS
+Patrick J. Volkerding <volkerdi@slackware.com>,
+with enhancements by Christian Franke <c.franke@acm.org>
+.PP
+Revised for Tukaani Linux by Lasse Collin <lasse.collin@tukaani.org>
+and Ville Koskinen <w\-ber@iki.fi>
+.SH "SEE ALSO"
+.BR pkgtool (8),
+.BR installpkg (8),
+.BR removepkg (8),
+.BR upgradepkg (8),
+.BR viewpkg (1),
+.BR explodepkg (1),
+.BR makepkg (1),
+.BR convertpkg (1),
+.BR makerepo (1)

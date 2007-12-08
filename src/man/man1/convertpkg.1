@@ -1,0 +1,88 @@
+.TH CONVERTPKG 1 "24 Dec 2005" "Tukaani Linux"
+.SH NAME
+convertpkg \- Convert packages to and from different formats.
+.SH SYNOPSIS
+.B convertpkg
+.RI [ options ]
+.I package
+.RI [[ options ]
+.IR package2 " ...]"
+
+.SH DESCRIPTION
+.B convertpkg
+is meant to make the converting of packages between different compression
+formats easier. The uncompressed tar file is never altered during the process.
+.PP
+The input file can be
+.BR .tgz ,
+.BR .tlz ,
+.BR .tbz ,
+or
+.BR .tar .
+(See
+.BR makepkg (1)
+for detailed information about the package compression formats.) If the package
+is already in the requested format or the target file exists, the package is
+skipped.
+.B convertpkg
+never overwrites any files.
+.PP
+In addition to Tukaani's native package format,
+.B convertpkg
+is able to convert
+.B .rpm
+and
+.B .deb
+packages to Tukaani/Slackware format. This conversion has limitations;
+e.g. it ignores install scripts. However, it is more convenient than the
+old
+.BR rpm2tgz .
+
+.SH OPTIONS
+.TP
+.BR \-g ", " \-\-tgz ", " \-\-gzip
+Convert the packages following this option to
+.BR gzip (1)
+compressed packages. The resulting packages will have the filename extension
+.BR .tgz .
+This is the only format supported by the official Slackware pkgtools. Use
+this if you are going to exchange packages with systems that do not have
+Tukaani pkgtools installed.
+.TP
+.BR \-l ", " \-\-tlz ", " \-\-lzma
+Convert the packages following this option to LZMA compressed packages.
+The resulting packages will have the filename extension
+.BR .tlz .
+This is the default if no format is specified.
+.TP
+.BR \-b ", " \-\-tbz ", " \-\-bzip2
+Convert the packages following this option to
+.BR bzip2 (1)
+compressed packages. The resulting packages will have the filename extension
+.BR .tbz .
+.TP
+.BR \-a ", " \-\-tar ", " \-\-tar
+Convert the packages following this option to uncompressed packages.
+The resulting packages will have the filename extension
+.BR .tar .
+.TP
+.BI "\-o " "directory\fR, " "\-\-outdir " directory
+Specify the directory where the new converted packages are put. By
+default converted packages are put to the same directory with the
+original packages.
+
+.SH AUTHORS
+Lasse Collin <lasse.collin@tukaani.org>,
+Ville Koskinen <w\-ber@iki.fi>
+.SH "SEE ALSO"
+.BR pkgtool (8),
+.BR installpkg (8),
+.BR removepkg (8),
+.BR upgradepkg (8),
+.BR viewpkg (1),
+.BR explodepkg (1),
+.BR makepkg (1),
+.BR slackrepo (1),
+.BR gzip (1),
+.BR bzip2 (1),
+.BR lzma (1)

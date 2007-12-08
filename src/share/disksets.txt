@@ -1,0 +1,20 @@
+A "Base Linux system" "The A (base) series contains the kernel and main system utilities." \
+AP "Various Applications that do not need X" "The AP series is a collection of useful applications." \
+C "32-bit Compatibility libraries" "The C series contains basic libraries required to run 32-bit applications." \
+D "Program Development (C, C++, Lisp, Perl, etc.)" "The D series contains compilers, debuggers, and other programming tools." \
+E "GNU Emacs" "The E series contains the GNU Emacs advanced real-time display editor." \
+EMU "Emulators" "The EMU series contains emulators which can be used to run non-Linux software." \
+F "FAQ lists, HOWTO documentation" "The F series contains essential documentation for Linux system administrators." \
+GNOME "The GNOME desktop for X" "The GNOME series contains the GNOME desktop environment and related libraries." \
+K "Linux kernel source" "The K series contains the source code for the Linux kernel." \
+KDE "The K Desktop Environment for X" "The KDE series contains the K Desktop Environment and related applications." \
+KDEI "International language support for KDE" "The KDEI series provides support for languages other than US English in KDE." \
+L "System Libraries (some needed by both KDE and GNOME)" "The L series contains libraries needed by GNOME, KDE, and other programs." \
+N "Networking (TCP/IP, UUCP, Mail, News)" "The N series contains network related clients, servers and libraries." \
+OOO "OpenOffice.org office suite" "The OOO series contains OpenOffice.org and language packages for it." \
+T "TeX typesetting software" "TeX is a typesetting system often used for mathematics and technical papers." \
+TCL "Tcl/Tk script languages" "The TCL series contains the Tcl/Tk/TclX languages and programs that use them." \
+X "X Window System" "This series contains X, the windowing system used by Linux." \
+XAP "X Applications" "The XAP series is a collection of applications for X." \
+Y "Games" "Collection of games (both text-based and for X)" \
+Z "Packages having legal restrictions in the US" "The software in Z series might be illegal in the US (e.g. patents or DMCA)." \

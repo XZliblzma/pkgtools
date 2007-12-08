@@ -1,0 +1,46 @@
+
+Thanks for everyone who tested, reported bugs and shared their ideas
+and wishes. Here is a list of people I would especially like to thank.
+
+The original version of the pkgtools on which my work is heavily
+based (exact version is pkgtools-10.1.0-i486-4):
+  * Patrick J. Volkerding
+  * others who have contributed into Slackware pkgtools
+
+Shell script code not included in pkgtools-10.1.0-i486-4:
+  * Jim Hawkins (faster code for View and Remove in 'pkgtool')
+  * Jason Woodward (some code in 'makerepo' is from slapt-get's FAQ)
+  * Michael G. Manry (some code in 'makerepo' was from swaret-tools)
+  * Jeff Johnson (rpm2cpio as a sh script, used in functions.explode.sh)
+
+Some utilities which are especially important for Tukaani pkgtools:
+  * Igor Pavlov (LZMA compression)
+  * Thomas E. Dickey (the 'dialog' program)
+
+Major help with the pkgtools documentation and writing a better command
+line interface for LZMA which is now part of LZMA utils used by pkgtools:
+  * Ville Koskinen (IRC-nick: w-ber)
+
+Testing, bug reports, ideas, feature requests, documentation proof
+reading etc. (in alphabetical order, IRC nick in parenthesis):
+  * Antti Aalto (anpi)
+  * Felix Collin (cohelix)
+  * Antti Harri (iku)
+  * Jakub Jankowski (shasta)
+  * Juho Kivistö (jufo)
+  * Jani Koivukoski (fts)
+  * Jesse Kokkarinen (jjpk)
+  * Jukka Kukkonen (jusu)
+  * Daniel Liljeqvist (Dasajev)
+  * Antti Miettunen (morgathan)
+  * Antti Nilakari (andyn)
+  * Jaakko Pallari (jaakkop)
+  * Mikko Pouru (pma)
+  * Ville-Petteri Ruokolainen (Scourge)
+  * Mika Suhonen (mikas)
+  * Teemu Suo-Anttila (Fal)
+  * T. Tamminen (ThemeS)
+  * Antti Vuorenpää (myrde)
+  * Joonas Utriainen (dactron)
+  * Jussi Uusi-Illikainen (Jui)
+

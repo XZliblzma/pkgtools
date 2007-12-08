@@ -1,0 +1,157 @@
+.TH INSTALLPKG 8 "24 Dec 2005" "Tukaani Linux"
+.SH NAME
+installpkg \- install Slackware and Tukaani compatible packages
+
+.SH SYNOPSIS
+.B installpkg
+.RB [ \-\-warn ]
+.RB [ \-\-quiet ]
+.RB [ "\-\-root \fI/otherroot" ]
+.I packagename
+.RI [ "packagename2" " ...]"
+
+.SH DESCRIPTION
+.B installpkg
+installs a single or multiple binary packages designed for use with the
+Slackware Linux and compatible distributions. Compression method used in
+the package is detected from filename extension:
+.TP
+.B .tgz
+gzip compressed tar archive
+.TP
+.B .tlz
+LZMA compressed tar archive
+.TP
+.B .tbz
+bzip2 compressed tar archive
+.TP
+.B .tar
+Uncompressed tar archive
+.PP
+For more information of different package compression methods see
+.BR makepkg (8).
+.PP
+If the
+.I packagename
+begins with
+.B http://
+or
+.B ftp://
+it is assumed to be an URL instead of a regular file. To use URLs with
+installpkg you need to have
+.BR wget (1)
+installed.
+.PP
+.B installpkg
+never upgrades any packages. If a version of the package is already
+installed,
+.B installpkg
+installs the new package without removing the old package. Usually some
+files overlap between different versions of the same package.
+Overlapping files are always overwritten without warnings. To upgrade
+packages see
+.BR upgradepkg (8).
+Note that
+.B upgradepkg
+can also install new packages, and at least for beginners it is
+recommended to use it for both installing and upgrading packages.
+
+.SH OPTIONS
+.TP
+.B \-w, \-\-warn
+Generate a report to the standard output about which files and directories
+would be removed or overwritten if you install the package(s). Do not
+actually install it.
+.TP
+.B \-q, \-\-quiet
+Supress all status messages during installation except wget download
+information. Critical error messages are still shown. If you want
+installpkg to be really quiet, redirect the output to /dev/null.
+.TP
+.BR \-g ", " \-\-gpg
+Force the verification of GPG signatures overriding the options set in
+the configuration file. Only packages that have been signed with a known
+valid key are installed. The signature files have
+.B .asc
+extension; e.g. the signature file of foo-0.12-i486-1barney.tgz is
+foo-0.12-i486-1barney.tgz.asc.
+.TP
+.BR \-G ", " \-\-no-gpg
+Forcibly disable the verfication of GPG signatures overriding the
+settings set in the configuration file.
+.TP
+.BI "\-b " "/packages\fR, " "\-\-base " "/packages"
+Specify a directory or URL which is prepended to every package name
+specified. This option can be useful if you have a list of full package
+names in a file and want to e.g. download and install all of them:
+.br
+installpkg -b http://myserver/mypacks $(cat packagelist.txt)
+.TP
+.BI "\-R " "/otherroot\fR, " "\-\-root " "/otherroot"
+Install using a location other than / (the default) as the root of the
+filesystem to install on. In the example given, use /otherroot
+instead. Setting the
+.B ROOT
+environment variable does the same thing.
+
+.SH FILES
+.TP
+.B /etc/pkgtools/config
+Configuration file. Documentation of all the configuration options have
+been put to
+.BR pkgtool (8)
+section
+.BR "CONFIGURATION FILE" .
+.TP
+.B /root/.gnupg/pubring.gpg
+Trusted public keys. You can import keys with a command like
+.B gpg \-\-import GPG-KEY
+where GPG-KEY is a file containing one or more public keys that you
+trust.
+
+.SH ENVIRONMENT
+.TP
+.B ROOT
+Setting this is equivalent to using the
+.B \-\-root
+.I /otherroot
+command line parameter.
+
+.SH BUGS
+Use
+.B upgradepkg \-\-install\-new
+instead of 
+.B installpkg
+unless you have a special reason to use
+.BR installpkg .
+Usually the reasons are limited to installing a new kernel package (to keep the old kernel still installed) and using the
+.B \-\-warn
+option.
+.PP
+.B installpkg
+does not check if a package with identical name is already installed and
+will silently overwrite its database entry. If the old package and new
+package have differences in their filelists,
+.B the files that no longer exist in the newer package will vanish
+.B from the package database.
+This issue will not be fixed to keep Slackware compability (advanced
+users might even like this ``feature'' and know how to use it properly).
+
+.SH AUTHORS
+Original by Patrick J. Volkerding <volkerdi@slackware.com>
+.PP
+Revised for Tukaani Linux by Lasse Collin <lasse.collin@tukaani.org>
+and Ville Koskinen <w\-ber@iki.fi>
+
+.SH "SEE ALSO"
+.BR pkgtool (8),
+.BR installpkg (8),
+.BR removepkg (8),
+.BR upgradepkg (8),
+.BR viewpkg (1),
+.BR explodepkg (1),
+.BR makepkg (1),
+.BR convertpkg (1),
+.BR slackrepo (1),
+.BR wget (1),
+.BR gpgv (1)

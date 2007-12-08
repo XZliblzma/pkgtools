@@ -1,0 +1,26 @@
+#
+# pkgtools list of blacklisted packages
+#
+# Package names listed here are hidden and ignored by 'pkgtool' with all
+# filter modes except 'All - Show all available packages'. Other tools
+# like installpkg or upgradepkg do *not* use this file at all.
+#
+# List package basenames to be blacklisted one by line. All invalid lines
+# are silently ignored.
+#
+
+# This should be (almost) never upgraded:
+aaa_elflibs
+
+# Upgrading kernel using pkgtool is perfectly safe *but* you should
+# remember to run lilo (or switch to grub ;-) and maybe also recreate
+# the initrd image. So this is just a safe default, feel free to uncomment:
+alsa-driver
+kernel-desktop
+kernel-generic
+kernel-headers
+kernel-ide
+kernel-image
+kernel-modules
+kernel-source
+

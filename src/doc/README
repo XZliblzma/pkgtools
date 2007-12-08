@@ -1,0 +1,136 @@
+
+Tukaani pkgtools version 1.2.0
+2006-04-01
+http://tukaani.org/pkgtools/
+Lasse Collin <lasse.collin@tukaani.org> [IRC-nick: Larhzu]
+
+INTRODUCTION
+
+    Tukaani pkgtools are an enhanced version of the Slackware pkgtools.
+    Pkgtools are a collection of ash/bash compatible scripts which
+    handle creating, installing, upgrading and removing software
+    packages. Tukaani pkgtools also include network support. Tukaani
+    pkgtools replace the original Slackware pkgtools; you cannot easily
+    have both installed, although it might be possible. Then again, when
+    you get to know all the features of the Tukaani pkgtools, you will
+    not feel the need to have the old pkgtools installed.
+
+    There is also a revised installation program which is based on
+    Slackware installation scripts and Tukaani pkgtools. It has HTTP and
+    FTP support. At the time of writing it is in beta stage but works
+    fine for most users. The Tukaani installation program can install
+    both Tukaani Linux and Slackware Linux 10.0 and later (including
+    -current). Support for Zenwalk is planned.
+
+REQUIREMENTS
+
+    In short, Tukaani pkgtools work on Slackware 10.0 and newer without
+    any other third party packages. If you want to use the LZMA packages
+    (.tlz) you will need to also install LZMA utils. LZMA offers a
+    tremendously better compression ratio than gzip and bzip2. Although
+    LZMA is slower in uncompressing and even slower in compressing than
+    gzip, the difference in compressed package size is nearly always
+    over 30%. Note that decompressing LZMA data is considerably faster
+    than decompressing bzip2 compressed data.
+
+    Requirements bundled with the pkgtools package:
+      * tar version 1.13 with small patches
+      * dialog 1.0-20051107 with a patch to sanitize combination
+        of `--item-info', `--help-button' and `--help-status' flags.
+
+    The following packages are needed on an ordinary x86 GNU/*/Linux system:
+      * GNU glibc 2.3.2 or later
+      * GNU bash 2.05b or 3.xx
+      * GNU coreutils >=5.2.1
+      * GNU sed 4.xx (pkgtools do not work with sed 3.xx)
+      * GNU grep >=2.5
+      * mktemp
+      * gzip 1.3.x
+      * bzip2 1.0.3 (only needed for .tbz support)
+      * `lzma' from LZMA utils >=4.27.0 (needed only for .tlz support)
+      * GNU wget >=1.9.1 (only if you want to install packages from network)
+
+    If you are using BusyBox, you will need:
+      * BusyBox snapshot 20050412 or later. The release 1.00 does not work.
+      * `paste' and `comm' from the GNU coreutils
+      * GNU sed 4.xx (pkgtools do not work with the BusyBox version of `sed')
+      * bzip2 if you want to create bzip2 compressed packages. bunzip2 of
+        BusyBox can be used if only decompression is needed.
+      * `lzma' (linking statically might be a good idea)
+
+    Also note that	
+      * View and Remove commands in `pkgtool' and `installpkg --warn' do not
+        work with the BusyBox `grep'. Everything else should work with the
+        `grep' provided by BusyBox.
+      * You may need to edit /etc/pkgtools/config for compatibility with
+        BusyBox wget.
+
+INSTALLATION
+
+    SLACKWARE 10.0 AND NEWER
+
+    Download pkgtools-tukaani_1.x.x-i486-1.tgz and install it using
+    `upgradepkg'. Do not install/upgrade any other packages at the
+    same time!
+
+        upgradepkg pkgtools-tukaani_1.x.x-i486-1.tgz
+
+    Should you need for some reason to get back the original Slackware
+    pkgtools, download the original Slackware pkgtools and use these
+    commands to downgrade cleanly and to remove all unneeded
+    configuration files:
+
+        upgradepkg pkgtools-10.x.x-i486-x.tgz
+        rm -r /etc/pkgtools /var/log/setup/repositories
+
+    LINUX FROM SCRATCH
+
+    First make sure that you have the basic requirements installed. Assuming
+    that you do not have any package management software installed, you can
+    install the Tukaani pkgtools using the following commands:
+
+        cd /   *OR*   cd /mnt/root
+        tar xzf /path/to/pkgtools-tukaani_1.x.x-i486-1.tgz
+        sh install/doinst.sh
+        rm -r install
+
+    Now you have the pkgtools extracted to the filesystem. The pacakage
+    database is still empty. Provided that you have the required utils
+    installed you can now reinstall pkgtools; this time the package will
+    be stored in the package database as well:
+
+        installpkg /path/to/pkgtools-tukaani_1.x.x-i486-1.tgz
+
+    If you installed to a chrooted directory, you can define the root
+    directory using --root:
+
+        installpkg --root /mnt/root /path/to/pkgtools-tukaani_1.x.x-i486-1.tgz
+
+    Now you can make packages of your software using `makepkg', for example:
+
+        coreutils-5.94$ make DESTDIR=/tmp/pkg install
+        coreutils-5.94$ cd /tmp/pkg
+        pkg$ makepkg coreutils-5.94-i686-1barney.tgz
+
+    Note that all steps in adding the final polish to the package are
+    omitted here, details such as adding description, stripping
+    binaries, gzipping the man pages, etc.
+
+COMPATIBILITY
+
+    The enhanced Tukaani pkgtools are and will be as compatible as
+    possible with official Slackware pkgtools. There are still two
+    unavoidable things which break the otherwise (hopefully) perfect
+    compatibility.
+
+    There is a workaround for a fundamental limitation of how symlinks
+    having special characters are stored in packages. See makepkg(1),
+    section `Compatibility', for more information.
+
+    Other package formats than .tgz (gzip compressed) are not supported
+    by the official Slackware pkgtools. However, the tar file format is
+    identical (we use the same tar-1.13 as Slackware does). If you need
+    to exchange packages with systems where you cannot use Tukaani
+    pkgtools, you can easily convert your packages using the
+    `convertpkg' utility.
+

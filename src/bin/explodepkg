@@ -1,0 +1,63 @@
+#!/bin/sh
+#
+# See the file `COPYRIGHT' for copyright and license information.
+#
+
+# Load shared functions:
+. /usr/share/pkgtools/functions.common.sh
+include explode
+
+# Preserve permissions as well as possible:
+umask 0000
+
+if [ $# = 0 ]; then
+  cat << EOF
+
+Usage: explodepkg package_name [package_name2 ... ]
+
+Explodes a Slackware compatible software package (or any tar, tar+gzip,
+tar+lzma or tar+bzip2 archive) to the current directory.
+
+Explodes software packages to the current directory. Supported package formats:
+  .tgz    tar-1.13 + gzip  (traditional Slackware package)
+  .tlz    tar-1.13 + lzma  (like Slackware package except the compression)
+  .tbz    tar-1.13 + bzip2
+  .rpm    rpm files contain files in a gzipped or bzip2'ed cpio archive
+  .deb    Debian's packages are "ar" archives that contain a tarball
+
+Note: This should only be used for debugging or examining packages, not
+for installing them. It doesn't execute installation scripts or update
+the package indexes in /var/log/packages|scripts.
+
+EOF
+  exit 0
+fi
+
+EXITSTATUS=0
+
+while [ $# != 0 ]; do
+  if [ ! -r "$1" ]; then
+    echo "Error: File $1 is not readable."
+    EXITSTATUS=1
+  else
+    # We do not check the file extension to keep explodepkg backwards
+    # compatible with original version of Slackware explodepkg.
+    echo "Exploding package $1 to the current directory:"
+    explode "$1"
+    EXITSTATUS=$?
+    if [ $EXITSTATUS != 0 ]; then
+      echo
+      echo "An error occurred exploding the file $1."
+      echo
+    fi
+    if [ -r install/doinst.sh ]; then
+      echo
+      echo "An installation script was detected in ./install/doinst.sh, but"
+      echo "was not executed."
+      echo
+    fi
+  fi
+  shift 1
+done
+
+exit $EXITSTATUS

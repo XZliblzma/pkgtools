@@ -1,0 +1,280 @@
+#!/bin/sh
+#
+# See the file `COPYRIGHT' for copyright and license information.
+#
+
+# Load shared functions:
+. /usr/share/pkgtools/functions.common.sh
+include installpkg
+include download
+include gnupg
+include remove
+include dotnew
+include log
+
+usage() {
+  cat << EOF
+
+Usage: upgradepkg newpackage [newpackage2 ... ]
+       upgradepkg oldpackage%newpackage [oldpackage2%newpackage2 ... ]
+
+Options:
+    -w, --warn          Show which packages would be installed or upgraded
+                        but don't actually perform the upgrades.
+
+    -i, --install-new   Install new packages in addition to upgrading
+                        existing ones.
+
+    -r, --reinstall     Upgrade even if the same version is already installed.
+
+    -v, --verbose       Show the list of all the files being removed. Normally
+                        only notices about missing files and non-empty
+                        directories are shown.
+
+    -q, --quiet         Hide all messages except wget download information.
+
+    -b, --base dir      Specify the directory or URL which is prepended to
+                        every package name specified on the command line.
+
+    -R, --root dir      Use a different root directory. This option overrides
+                        the \$ROOT environment variable.
+
+EOF
+  exit 0
+}
+
+# Parse options:
+[ $# = 0 ] && usage
+ARGS=$(getopt -n upgradepkg -o rivqwb:R:NKhgG \
+  -l reinstall,install-new,verbose,quiet,warn,dry-run,base:,root: \
+  -l keep-dotnew,gpg,no-gpg,help -- "$@")
+[ $? != 0 ] && exit 99
+eval set -- "$ARGS"
+unset ARGS REINSTALL INSTALL_NEW DRY_RUN BASEDIR NOLDCONFIG KEEP_DOTNEW FORCE_GPG
+VERBOSE=normal
+while : ; do
+  case "$1" in
+    -r|--reinstall)       # Reinstall packages even if the installed one
+      REINSTALL="yes"     # is the same version.
+      ;;
+    -i|--install-new)     # Install packages that do not already have an installed
+      INSTALL_NEW="yes"   # version. The usual default is to skip them.
+      ;;
+    -v|--verbose)
+      VERBOSE="verbose"
+      ;;
+    -q|--quiet)           # Don't show any messages except errors and wget messages.
+      VERBOSE="quiet"
+      ;;
+    -w|--warn|--dry-run)  # Output a report about which packages would be installed
+      DRY_RUN="yes"       # or upgraded but don't actually perform the upgrades.
+      ;;
+    -b|--base)            # Directory or URL where to look packages
+      BASEDIR="$2/"       # specified on the command line
+       shift 1
+       ;;
+    -R|--root)                     # Install somewhere else than / filesystem.
+      check_root_dir_exists "$2"   # --root overrides ROOT environment variable.
+      ROOT=$2
+      shift 1
+      ;;
+    -K|--keep-dotnew)     # Do not delete nor show the list of new config
+      KEEP_DOTNEW=yes     # files (*.new). The file is stored to $TMP/dotnew.
+      ;;
+    -g|--gpg)
+      FORCE_GPG=1
+      ;;
+    -G|--no-gpg)
+      FORCE_GPG=0
+      ;;
+    -h|--help)
+      usage
+      ;;
+    --)                   # End of options
+      shift 1
+      break
+      ;;
+    *)
+      exit_getopt_error
+      ;;
+  esac
+  shift 1
+done
+[ $# = 0 ] && exit_no_packages_specified
+check_is_run_by_root
+
+initialize_variables_and_package_database
+
+[ -z "$KEEP_DOTNEW" ] && dotnew_cleanup
+installpkg_init $# $FORCE_GPG
+
+# Main processing loop:
+for ARGS; do
+
+  # Figure out the names of the old and new packages:
+  OLD=${ARGS%%'%'*}
+  PKG=${ARGS#*'%'}
+  TYPE=$(package_type "$PKG")
+  OLD=$(package_fullname "$OLD")
+  NEW=$(package_fullname "$PKG")
+
+  # Check that the package name is reasonable, and set PKG_* variables:
+  installpkg_checkname || { EXITSTATUS=$?; continue; }
+
+  # Check if it is already installed and --reinstall was not requested:
+  if [ "$REINSTALL" != "yes" -a -f "$ADM_DIR/packages/$NEW" ]; then
+    if [ "$DRY_RUN" = "yes" ]; then
+      echo "$NEW would be skipped (already installed)."
+    elif [ "$VERBOSE" != "quiet" ]; then
+      installpkg_banner "Skipping $NEW (already installed)"
+    fi
+    continue
+  fi
+
+  # Check and fix the old package name:
+  OLD_BASENAME=$(package_basename "$OLD")
+  if [ ! -r "$ADM_DIR/packages/$OLD" ]; then
+    for I in "$ADM_DIR/packages/$OLD_BASENAME"* ; do
+      # If no matches were found, break out of this loop:
+      [ "$I" = "$ADM_DIR/packages/$OLD_BASENAME*" ] && break
+      if [ "$(package_basename "$I")" = "$OLD_BASENAME" ]; then # found one
+        OLD=$(basename "$I")
+        break
+      fi
+    done
+  fi
+
+  # Find out should we (download and) install/upgrade this package:
+  IS_UPGRADE=1  # Assume that we are upgrading an already installed package.
+  if [ ! -f "$ADM_DIR/packages/$OLD" ]; then
+    if [ "$INSTALL_NEW" != "yes" ]; then
+      if [ "$DRY_RUN" = "yes" ]; then
+        echo "$OLD would not be upgraded (no installed package named $OLD_BASENAME)."
+      elif [ "$VERBOSE" != "quiet" ]; then
+        echo
+        echo "Error:  there is no installed package named $OLD."
+        echo "        (looking for $ADM_DIR/packages/$OLD)"
+        echo
+      fi
+      EXITSTATUS=1
+      continue
+    elif [ "$DRY_RUN" = "yes" ]; then
+      echo "$NEW would be installed (new package)."
+      continue
+    elif [ "$VERBOSE" != "quiet" ]; then
+      installpkg_banner "Installing new: $NEW.$TYPE"
+    fi
+    IS_UPGRADE=0 # Installing a new package (not upgrading).
+  elif [ "$DRY_RUN" = "yes" ]; then
+    echo -n "$NEW would upgrade:"
+    for FILE in "$ADM_DIR/packages/$OLD_BASENAME"* ; do
+      if [ "$(package_basename "$FILE")" = "$OLD_BASENAME" ]; then
+        echo -n " $(package_fullname "$FILE")"
+      fi
+    done
+    echo
+    continue
+  elif [ "$VERBOSE" != "quiet" ]; then
+    installpkg_banner "Upgrading $OLD using $NEW.$TYPE"
+  fi
+  # If we get here, the package will be installed/upgraded.
+
+  # Download and verify GPG signature:
+  installpkg_download_and_gnupg || { EXITSTATUS=$?; continue; }
+
+  # Get the filelist from the package and store it to $TMP/files.$PKG_FULLNAME:
+  installpkg_filelist || { EXITSTATUS=$?; continue; }
+
+  if [ $IS_UPGRADE = 1 ]; then
+    # Rename all the installed packages with this basename to make them
+    # easy to remove later:
+    TIMESTAMP=$(date +%Y-%m-%d,%T)
+    for I in "$ADM_DIR/packages/$OLD_BASENAME"* ; do
+      if [ "$(package_basename "$I")" = "$OLD_BASENAME" ]; then
+        mv -f "$I" "$I-upgraded-$TIMESTAMP"
+      fi
+    done
+    for I in "$ADM_DIR/scripts/$OLD_BASENAME"* ; do
+      if [ "$(package_basename "$I")" = "$OLD_BASENAME" -a -f "$I" ]; then
+        mv -f "$I" "$I-upgraded-$TIMESTAMP"
+      fi
+    done
+  fi
+
+  # Next, the new package is pre-installed:
+  installpkg_install
+
+  # Write the database entry for the new package before removing old packages:
+  installpkg_db
+
+  # Put the list of the *.new files to a temporary file:
+  dotnew_add "$PKG_FULLNAME"
+
+  if [ $IS_UPGRADE = 1 ]; then
+    # Now, the leftovers from the old package(s) can go. Pretty simple, huh? :)
+    for I in "$ADM_DIR/packages"/*-upgraded-$TIMESTAMP ; do
+      remove_pkg "$(basename "$I")" remove "$VERBOSE"
+    done
+
+    # If any files shift location because of doinst.sh in the new package,
+    # we *must* run installpkg_install again after removing the old package(s).
+    # Otherwise some files might dissappear. Do not undervalue this step!
+    # If we want to skip this step, *both* of these steps must be met:
+    #   * package doesn't contain doinst.sh or doinst.sh contains only symlinks
+    #   * all the files of the package must still exist (yes, it is possible
+    #    that removepkg removes some of them because of symlinked directories!)
+    if [ -e "$ROOT/install/doinst.sh" ] && [ "$(sed '
+              /^ *$/d
+              /^( *cd [^ ;]\+ *; *rm -rf [^ )]\+ *) *$/{
+                N
+                /^( *cd \([^ ;]\+\) *; *rm -rf \([^ )]\+\) *) *\n( *cd \1 *; *ln -sf [^ )]\+ \2 *) *$/d
+              }
+          ' "$ROOT/install/doinst.sh" \
+          | wc -c | tr -d ' ')" != "0" ]; then
+      installpkg_install quiet
+    else
+      # Scan the file and symlink lists to make sure they still exist:
+      (
+        set -f
+        for FILE in $(grep -v '/$' "$TMP/files.$PKG_FULLNAME"); do
+          if [ ! -e "$ROOT/$FILE" ]; then
+            installpkg_install quiet
+            exit # Exits from the subshell only.
+          fi
+        done
+        # Files existed, check links. The reason to have two separate loops
+        # is that we avoid extracting the symlinks completely if some file
+        # already happened to not exist (not a big thing at all).
+        for FILE in $(extract_links < "$TMP/files.$PKG_FULLNAME"); do
+          if [ ! -e "$ROOT/$FILE" ]; then
+            installpkg_install quiet
+            exit # Exits from the subshell only.
+          fi
+        done
+      )
+    fi
+  fi
+
+  # Update the GNU info directory file:
+  installpkg_gnuinfo "$NEW.$TYPE" "$VERBOSE"
+
+  # Clean up the temporary files:
+  installpkg_cleanup "$NEW.$TYPE"
+
+  # Add an entry to the log file:
+  if [ $IS_UPGRADE = 1 ]; then
+    log_line "Upgraded: $OLD to $PKG_FULLNAME.$PKG_TYPE"
+  else
+    log_line "Installed new: $PKG_FULLNAME.$PKG_TYPE"
+  fi
+
+done
+
+if [ "$VERBOSE" != "quiet" ]; then
+  dotnew_print_new
+  dotnew_print_kernel
+  echo
+fi
+[ -z "$KEEP_DOTNEW" ] && dotnew_cleanup
+
+exit $EXITSTATUS

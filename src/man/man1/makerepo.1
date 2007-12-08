@@ -1,0 +1,146 @@
+.TH MAKEREPO 1 "1 Apr 2006" "Tukaani Linux"
+.SH NAME
+makerepo \- Create package repositories compatible with Tukaani pkgtool
+and other tools, such as slapt-get.
+.SH SYNOPSIS
+.B makerepo
+.RI [ options ]
+.I directory
+
+.SH DESCRIPTION
+.B makerepo
+creates the list files which contain the filenames, package descriptions
+and checksums in the root of the
+.IR directory .
+The
+.I directory
+is always scanned recursively.
+
+.SH OPTIONS
+If no options are given
+.B makerepo
+defaults to
+.BR \-fcpm .
+.TP
+.BR \-f ", " \-\-filelist
+Create
+.B FILELIST.TXT
+containing the recursive list of all files and directories in the
+.IR directory .
+The created file is of the same format and compatible with FILELIST.TXT
+found in the official Slackware FTP tree.
+.TP
+.BR \-a ", " \-\-manifest
+Create
+.B MANIFEST.bz2
+which contains filelists of all the packages in the repository. The list
+will not include symlinks.
+.TP
+.BR \-A ", " \-\-manifest-lzma
+Like
+.B \-\-manifest
+but use LZMA compression instead of bzip2.
+.TP
+.BR \-c ", " \-\-changelog
+Update the
+.B ChangeLog
+file. You probably want to edit ChangeLog manually to add more detailed
+comments.
+.B \-\-changelog
+implies
+.BR \-\-filelist .
+.TP
+.BR \-p ", " \-\-packages
+Create
+.B PACKAGES.TXT
+containing package descriptions. The created file is of the same format
+and compatible with PACKAGES.TXT found in the official Slackware FTP
+tree.
+.TP
+.BR \-m ", " \-\-md5
+Create
+.BR CHECKSUMS.md5 .
+The created file is of the same format and compatible with CHECKSUMS.md5
+found in the official Slackware FTP tree.
+.TP
+.BR \-s ", " \-\-sha1
+Create
+.BR CHECKSUMS.sha1 .
+The created file is similar to CHECKSUMS.md5 except that it uses SHA1.
+.B pkgtool
+does not support checking the SHA1 checksums and this file is not used
+by it.
+.TP
+.BR \-g ", " \-\-only-gzip
+By default,
+.B makerepo
+will create both uncompressed and gzipped versions of the requested
+files. The gzipped versions are used by
+.B pkgtool
+and
+.BR slapt-get (8)
+to make downloading faster.
+.B \-\-only-gzip
+disables creation of uncompressed versions.
+.TP
+.BR \-G ", " \-\-no-gzip
+Create only uncompressed versions of the requested files.
+.TP
+.BR \-o ", " \-\-official
+By default,
+.B makerepo
+creates the requested files to the root of the package tree. When
+.B \-\-official
+is specified,
+.B makerepo
+will handle subdirectories named
+.BR slackware ,
+.BR extra ,
+.BR testing ,
+.BR pasture ,
+.BR patches
+and
+.B contrib
+specially and create the requested files into these directories
+separately, similar to how they are in the official Slackware FTP tree.
+Repositories created with this option are (in most cases) splitted into
+disksets when viewed in
+.BR pkgtool .
+.TP
+.BR \-S ", " \-\-slapt
+Include the fields 'required', 'conflicts' and 'suggests' to
+PACKAGES.TXT. The fields are constructed from the files
+.BR slack-required ,
+.B slack-conflicts
+and
+.BR slack-suggests ,
+if they are present in the packages. These fields are used by
+.BR slapt-get (8).
+They are not used by
+.BR pkgtool (8)
+expect that they are shown when viewing package information.
+.TP
+.BR \-M ", " \-\-mirror " \fIURL"
+Add the 'mirror' field to PACKAGES.TXT, which is used by
+.B slapt-get
+to download packages from another location than that of PACKAGES.TXT.
+The mirror field is not supported by
+.B pkgtool
+in any way; the repositories created with this option probably work only
+with
+.BR slapt-get .
+
+.SH AUTHORS
+Lasse Collin <lasse.collin@tukaani.org>,
+Ville Koskinen <w\-ber@iki.fi>
+.SH "SEE ALSO"
+.BR pkgtool (8),
+.BR installpkg (8),
+.BR removepkg (8),
+.BR upgradepkg (8),
+.BR viewpkg (1),
+.BR explodepkg (1),
+.BR makepkg (1),
+.BR convertpkg (1),
+.BR md5sum (1),
+.BR sha1sum (1)

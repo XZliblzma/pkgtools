@@ -1,0 +1,55 @@
+--- tar-1.13.orig/src/tar.c	1999-07-07 08:49:50.000000000 +0300
++++ tar-1.13/src/tar.c	2005-11-18 01:11:09.000000000 +0200
+@@ -16,6 +16,9 @@
+    with this program; if not, write to the Free Software Foundation, Inc.,
+    59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
+ 
++/* Patched to integrate bzip2 and lzma as compression filters
++   (options -y/--bzip2 and -Y/--lzma)  */
++
+ #include "system.h"
+ 
+ #include <getopt.h>
+@@ -164,6 +167,9 @@
+   {"block-number", no_argument, NULL, 'R'},
+   {"block-size", required_argument, NULL, OBSOLETE_BLOCKING_FACTOR},
+   {"blocking-factor", required_argument, NULL, 'b'},
++  {"bzip2", required_argument, NULL, 'y'},
++  {"bunzip2", required_argument, NULL, 'y'},
++  {"lzma", required_argument, NULL, 'Y'},
+   {"catenate", no_argument, NULL, 'A'},
+   {"checkpoint", no_argument, &checkpoint_option, 1},
+   {"compare", no_argument, NULL, 'd'},
+@@ -340,6 +346,8 @@
+               PATTERN                at list/extract time, a globbing PATTERN\n\
+   -o, --old-archive, --portability   write a V7 format archive\n\
+       --posix                        write a POSIX conformant archive\n\
++  -Y, --lzma                         filter the archive through lzma\n\
++  -y, --bzip2, --bunzip2             filter the archive through bzip2\n\
+   -z, --gzip, --ungzip               filter the archive through gzip\n\
+   -Z, --compress, --uncompress       filter the archive through compress\n\
+       --use-compress-program=PROG    filter through PROG (must accept -d)\n"),
+@@ -416,7 +424,7 @@
+    Y  per-block gzip compression */
+ 
+ #define OPTION_STRING \
+-  "-01234567ABC:F:GK:L:MN:OPRST:UV:WX:Zb:cdf:g:hiklmoprstuvwxz"
++  "-01234567ABC:F:GK:L:MN:OPRST:UV:WX:YZb:cdf:g:hiklmoprstuvwxyz"
+ 
+ static void
+ set_subcommand_option (enum subcommand subcommand)
+@@ -788,6 +796,14 @@
+ 	  FATAL_ERROR ((0, errno, "%s", optarg));
+ 	break;
+ 
++      case 'y':
++        set_use_compress_program_option ("bzip2");
++        break;
++
++      case 'Y':
++        set_use_compress_program_option ("lzma");
++        break;
++
+       case 'z':
+ 	set_use_compress_program_option ("gzip");
+ 	break;

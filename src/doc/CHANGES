@@ -1,0 +1,360 @@
+
+2007-01-10 - from tukaani_1.2.3 to tukaani_1.2.4
+
+  * Fixed a bug in functions.explode.sh that broke explodepkg and 
+    convertpkg with RPM packages if /bin/sh was GNU bash 3.2.
+
+---
+
+2006-12-07 - from tukaani_1.2.2 to tukaani_1.2.3
+
+  * Fixed a bug in installpkg and upgradepkg which made them misbehave
+    with packages having symlinks in the tarball instead of in doinst.sh.
+    Thanks to Phil DeVries for the bug report and debugging help.
+  * Now it's possible to use subdirectories of official repositories
+    in pkgtool e.g. ftp://foo.tld/slackware-xx.x/patches now works as
+    expected. Thanks to Dexter Filmore for for the bug report.
+  * Fixed a bug with spaces in filenames in makerepo. Thanks to
+    Jakub Jankowski for the bug report.
+  * Updated /usr/bin/xorgsetup from Slackware 11.0. This probably
+    doesn't work with Slackware 10.x. I hope that everyone willing to
+    use xorgsetup on their 10.x boxes have already run it. ;-)
+  * Added rc.rpc and rc.scanluns to /var/log/setup/setup.services.
+    They were added in Slackware 11.0.
+  * Fixed path to xwmconfig in /var/log/setup/setup.xwmconfig.
+  * Updated /etc/dialogrc from Slackware 11.0.
+
+---
+
+2006-08-06 - from tukaani_1.2.1 to tukaani_1.2.2
+
+  * makerepo no longer generates unwanted files when only --manifest
+    is used. This bug was reported by someone on #tukaani@Freenode
+    but I don't remember his nick nor name, sorry and thank you.
+  * Speed optimization made in installpkg had a small bug that prevented
+    symlinks pointing to itself to not get overwritten
+  * Fixed a typo in pkgtool. Thanks to Jakub Jankowski (shasta).
+  * Added help command to pkgtool to be an alias for --help.
+    Documented both in pkgtool.8.
+
+---
+
+2006-05-02 - from tukaani_1.2.0 to tukaani_1.2.1
+
+  * Fixed a bug in pkgtool which broke `install-updates' command.
+    Thanks to Daniel Liljeqvist (Dasajev) for the bug report.
+  * Paritially fixed a bug in the installer where it prompts to
+    rerun scripts. Hopefully we some day have a _simple_ and _reliable_
+    installer, that will require writing things from scratch and not
+    as sh-scripts!
+  * Instead of creating a half dozen of packages, I made only two
+    packages. The i486 package is without terminfo entries and works on
+    Tukaani Solid & Edge, and Slackware 10.0 and later, including
+    Current. The x86-64 package is for Slamd64 (all versions). It is
+    VERY IMPORTANT that users have the ncurses package installed before
+    upgrading the pkgtools package!
+
+---
+
+2006-04-01 - from tukaani_1.2.0rc1 to tukaani_1.2.0
+
+  * Fixed bugs in command line mode of pkgtool, thanks
+    to Teemu Suo-Anttila (Fal).
+  * "pkgtool install foopkg" now installs the package "foopkg" from the
+    default repository. Earlier only full package names with version and
+    build numbers were supported.
+  * makerepo now creates "ChangeLog.txt", not "ChangeLog".
+  * Fixed mirrors.linuxpackages.name.txt and updated
+    mirrors.tukaani.addresses.txt.
+  * Made minor updates to man pages.
+  * There will be packages for Tukaani, Slackware 10.x, Slackware Current,
+    Slamd64 10.x and Slamd64 Current.
+  * Time to call this a stable release. I'm not planning to add any new
+    features unless they are trivial to implement. I *will* make bug
+    fixes, so please report any bugs you find. (No April's fools here.)
+
+---
+
+2006-01-01 - from tukaani_1.1.97 to tukaani_1.2.0rc1
+
+  * Fixed a bug from pkgtool that broke the Remove command.
+  * Man pages were proof read by Ville Koskinen.
+  * Built separate packages for Tukaani, Slackware and Slamd64.
+
+---
+
+2005-12-24 - from tukaani_1.1.96 to tukaani_1.1.97
+
+  * Fixed a bugin upgradepkg which could make some files to dissappear.
+    In practice this issue should have affected only users of Tukaani
+    Edge (not Slackware nor even Tukaani Solid) because we had started
+    moving files from usr/{info,man,doc} to usr/share/{info,man,doc}.
+    The actual bug was the old known symlinked directory handling bug in
+    removepkg which probably will never be fixed. The fix in upgradepkg
+    is a workaround for the removepkg issue.
+  * Added a few abbreviations for pkgtool's command line mode. See the
+    pkgtool(8) man page for more information.
+  * Added ChangeLog creation support to makerepo.
+  * Initial updates for man pages. :-)
+
+---
+
+2005-12-06 - from tukaani_1.1.95 to tukaani_1.1.96
+
+  * Fixed stupid bug that showed message about upgraded pkgtools
+    when pkgtools *haven't* been upgraded. Sorry.
+  * Fixed another stupid bug that prevented pkgtools from being
+    upgraded if it was the last package on the upgrade list.
+    This was related to the feature which installs glibc-solibs
+    at very first and pkgtools at very last package.
+
+---
+
+2005-12-05 - From tukaani_1.1.93 to tukaani_1.1.95
+
+  * Fixed a bug that prevented listing the *.new files at the end of
+    the package installation.
+  * Added missing --verbose switches to installpkg and upgradepkg.
+  * Preliminary support for upcoming LZMA utils 4.30.
+  * Applied a patch to tar-1.13 which adds --no-overwrite-dir. The
+    /bin/tar-1.13 executable is now renamed to /bin/tar-1.13-pkgtools
+    to prevent problems if the user reinstalls Slackware's tar package.
+  * pkgtool: Upgrade glibc-solibs as the very first step if it has been
+    chosen to be upgraded. Upgrade the pkgtools package as the last step
+    to prevent any possible incompatibilities between the old pkgtool
+    and new installpkg/upgradepkg.
+  * Added more service names and descriptions to config-services.
+  * Upgraded dialog to 1.0-20051107.
+  * Added Linuxpackages.net to the mirror list.
+  * Modified config-xwm to a more flexible form and added support
+    for /opt/*/etc/X11/xinit/.
+
+---
+
+2005-11-14 - From tukaani_1.1.91 to tukaani_1.1.93
+
+  * Fixed a few bugs, thanks to Teemu Suo-Anttila (Fal)
+
+---
+
+2005-11-14 - From tukaani_1.1.0_beta1 to tukaani_1.1.91:
+
+  * Changed version numbering scheme. Now odd minor number means
+    a development version, even is stable. (This is exactly how Linux
+    kernel releases are numbered.)
+  * Sync with Slackware 10.2 pkgtools.
+  * The code has been splitted to smaller files. This makes code easier
+    to read and maintain. pkgtool still needs a lot of cleanups, all the
+    other scripts should be fine already.
+  * convertpkg and explode now handle .rpm and .deb packages. There is no
+    need to have any rpm specific tools installed, only cpio is needed.
+    Debian packages need ar from binutils.
+  * tukrepo is now known as makerepo. It now caches also MD5 and SHA1
+    checksums. Updating PACKAGES.TXT is also notably faster.
+  * setup.services has been rewritten to a saner form and made available
+    as a command `config-services'.
+  * xwmconfig has been renamed to config-xwm. To avoid making old user
+    angry, a symlink xwmconfig->config-xwm has been created.
+  * Nicer boxes in command line mode of installpkg and upgradepkg. ;-)
+  * Many significant speed improvements.
+  * A few important fixes to Tukaani Installer related code. Thanks to
+    T. Tamminen (ThemeS) for help!
+  * Lots of non-critical bugfixes (mostly cosmetical).
+
+---
+
+2005-08-07 - From tukaani_1.0.0 to tukaani_1.1.0_beta1:
+
+installpkg:
+  * Verify GPG signatures. The default can be set in /etc/pkgtools/config
+    or manually with command line options --gpg and --no-gpg. The default
+    configuration is set to verify the signatures of all packages
+    downloaded from the net and not check for local packs.
+  * Use 'install-info' to add new GNU info documents to info's directory
+    file (/usr/info/dir or /usr/info/dir.gz). When needed, the whole
+    directory file can be reconstructed from scratch.
+  * Added a new command line option --base which allows you to specify
+    the base directory or URL which is prepended to every package name
+    specified on the command line.
+  * Major speed improvement for executing doinst.sh. The trick is to
+    modify the commands that create the symlinks to a saner form. With
+    packages having lots of symlinks this will make execution of
+    doinst.sh three to four times faster, which can be many seconds
+    even on two-gigaherz computer.
+  * Run ldconfig only when new shared libraries are installed. This
+    check is not perfect; ldconfig might get run sometimes when it's not
+    needed, but it will be always run when it is really needed.
+
+upgradepkg:
+  * New command line option: --base
+
+removepkg:
+  * Use 'install-info' to delete the directory entries of info pages
+    being removed.
+
+pkgtool:
+  * No longer use FILELIST.TXT because all the required information is
+    avaialable in PACKAGES.TXT.
+  * Try to download PACKAGES.TXT.gz before PACKAGES.TXT. The file is
+    about 30% of original size when gzipped.
+  * Added Update&Open to repository filter menu; now it is easy to
+    update the repository without going through Actions menu or
+    using QuickUpdate.
+  * In command line mode: default to the first repository if reponame
+    is omitted.
+  * Verify MD5 sums of packages if CHECKSUMS.md5 contains them.
+  * Automatically hides all pkgtools packages that do not contain
+    'tukaani' in the filename. This might sound evil but it is just
+    to prevent accidental downgrades and the problems it could cause.
+  * Tukaani Installer related bugfixes.
+
+makepkg:
+  * Speed improvements in symlink deletion and permission/ownership
+    modifications code using the 'xargs' command.
+
+tukrepo (formerly slackrepo):
+  * Dispite the name tukrepo can be used to create Slackware compatible
+    PACKAGES.TXT, CHECKSUMS.md5 and FILELIST.TXT files.
+  * The function to create PACKAGES.TXT is completely rewritten and
+    it works well now. :-)
+  * In addition to uncompressed files, create also gzipped versions.
+    (PACKAGES.TXT.gz, CHECKSUMS.md5.gz etc.)
+  * Support slapt-get's extensions in PACKAGES.TXT (required, conflicts
+    and suggests).
+  * Optionally you can include MD5 and/or SHA1 sums to PACKAGES.TXT.
+    Use this feature with care since not necessarily all the 3rd party
+    tools accept PACKAGES.TXT files having these fields.
+
+shared_functions.sh:
+  * unset POSIXLY_CORRECT since it breaks at least the sed scripts of
+    pkgtool which use GNU extensions.
+
+disksets.txt
+  * Updated
+
+---
+
+2005-05-18 - From tukaani_1.0.0_rc3 to tukaani_1.0.0:
+
+  * Very important bug fix in "upgradepkg --install-new"
+  * Changed LZMA options in makepkg to faster values. The effect
+    on compression ratio should be negligible.
+  * Corrected the LZMA memory requirements in the man page of makepkg.
+    This is *not* related to the above change in makepkg itself.
+  * Some minor code cleanups
+  * Released the first stable release. :-)
+
+---
+
+2005-05-02 - From tukaani_1.0.0_rc2 to tukaani_1.0.0_rc3:
+
+  * Fixed a minor bug in convertpkg.
+  * Added 'menu-dir <directory>' to command line mode of pkgtool.
+
+---
+
+2005-04-30 - From tukaani_1.0.0_rc1 to tukaani_1.0.0_rc2:
+
+  * Fixed broken Setup menu in pkgtool - (sorry, I try to never break
+    working code again ;) )  This bug was found by Antti Aalto.
+  * Fixed malfunction of pkgtool command line commands 'menu',
+    'menu-desc', 'search' and 'search-desc'. The bug occurred only when
+    the results contained packages from 'extra', 'pasture' or 'testing'.
+  * Fixed Actions->Update to not exclude 'pasture' and 'testing' with
+    filters CustomName and CustomDesc. Removed a few lines of duplicate
+    code at the same time.
+
+---
+
+2005-04-23 - Summary of changes from pkgtools-10.1.0-i486-4 to
+             pkgtools-tukaani_1.0.0_rc1-i486-1:
+
+Miscellaneous changes:
+  * Moved scripts from {/bin,/sbin} to /usr/{bin,sbin}. To retain
+    compatibility with 'checkinstall', a few symlinks were made to /sbin.
+  * Moved 'explodepkg' and 'makepkg' from sbin to bin because they are
+    useful to ordinary users too.
+  * Jim Hawkins' bugfixed code for Remove and View commands in 'pkgtool'
+  * General speed improvements in many places. E.g. package file is now
+    decompressed only three times during upgradepkg. Original did it four or
+    six times depending on if a .txt file containing the description was
+    available.
+  * New --warn mode in 'installpkg'. Instead of just showing the package
+    contents it now checks what would be overwritten in reality.
+  * 'makepkg' clearly shows what the default answer is, so the user can just
+    press enter (or even give invalid input): [Y/n].
+  * Behavior of --chown is changed in 'makepkg'. Now it chowns everything to
+    root:root, and chmods all files and dirs with executable bit set to 0755
+    and others to 0644.
+  * Moved common functions to /usr/share/pkgtools/shared_functions.sh.
+  * Updated the man pages.
+  * Package information (like size) is now aligned right in /var/log/packages
+    for better readability . Only spaces were added so this definitely
+    shouldn't affect compatibility.
+  * All long command line options (e.g. --reinstall) have a short
+    counterpart (e.g. -r).
+  * Most tools (but not all) use 'getopt' to parse command line options.
+    Options no longer need to be given before package names.
+  * Some command line options are no longer supported. Refer to the man pages
+    for the officially supported options. Some backwards compatibility is
+    retained by allowing long options to start with a single '-'. Don't
+    count on it, though.
+  * 'installpkg', 'removepkg', 'upgradepkg' and 'pkgtool' can be used
+    only as root. (Bad change?)
+  * Added rc.firewall and rc.ntpd to 'setup.services'. rc.dnsmasq is
+    still excluded, should it be included too?
+  * Upgraded to dialog version 1.0-20050306 with a trivial patch to make
+    --help-button usable when combined with --item-info.
+  * pkgtools no longer check availability of /bin/tar-1.13. tar-1.13 is
+    now included with pkgtools to make sure it is available.
+
+New features:
+  * Added support for LZMA compressed (.tlz), bzip2 compressed (.tbz) and
+    uncompressed (.tar) packages.
+  * Added network support, requires 'wget'. You can now give 'installpkg'
+    and 'upgradepkg' a HTTP or FTP URL on the command line.
+  * 'pkgtool' is mostly rewritten. Supports multiple package repositories,
+    Details-button in Remove menu, simple package database integrity check,
+    totally new command line interface.
+  * A few options can be set using the configuration file /etc/pkgtools/config.
+  * 'makepkg' can be now used by ordinary users as long as it is OK that all
+    the files in the package will be owned by root:root.
+  * When installpkg or upgradepkg finishes, a list of the new *.new
+    files left on the disk is shown. I hope most users now remember to
+    check the *.new files and update their configuration after upgrading.
+  * 'installpkg', 'upgradepkg' and 'makepkg' show a warning if the package
+    name does not conform to the Slackware naming standard. They do not
+    prevent installation nor ask any confirmation.
+  * 'makepkg' warns if the created package does not have a description.
+  * New command: 'convertpkg' converts between different package
+    compression formats.
+  * New command: 'viewpkg' shows detailed package information. It also
+    makes comparing of two packages easier. 'viewpkg' has many command line
+    options which make it easy to get the exact output format you need.
+  * New command: 'slackrepo' creates a Tukaani compatible repository that
+    contains FILELIST.TXT and PACKAGES.TXT.
+
+Bugfixes:
+  * Fixed handling of special characters like spaces in filenames given
+    in command line. E.g. this kind of command works now:
+    installpkg "My Packages/foo-0.12-i486-1barney.tgz"
+  * bash and ash wrongly assume that root can read everything so
+    [ -r /path/foo ] returns always true. This is not true e.g. with NFS.
+    'installpkg' and 'upgradepkg' now check the package integrity before
+    trying to install so unreadable package files are no longer a source of
+    trouble. Original pkgtools use [ -r ] correctly, but because of the
+    shell's buggy behavior the package gets removed instead of upgraded. :-/
+  * --warn mode of 'installpkg': If package didn't have 'install/doinst.sh',
+    empty temporary directory was left in $TMP.
+  * Made 'installpkg' better handle packages that are not created with
+    'makepkg'. E.g. package created with "tar czf foo-0.1-i486-1bar.tgz *"
+    is now stored correctly in the package database.
+  * The method of making the symbolic link creating script is rewritten.
+    Please refer to makepkg(1), section COMPATIBILITY for details.
+
+Bugs that are not fixed:
+  * If two packages have files that overlap, but the directory in the packages
+    differ because of a symlink (or symlinks), removepkg deletes the
+    overlapping file(s). Luckily this bug is fairly rare. See removepkg(8)
+    for detailed explanation.
+

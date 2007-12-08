@@ -1,0 +1,3 @@
+#!/bin/sh
+#BLURB="Select/deselect system daemons (services)"
+exec bin/sh usr/sbin/config-services "$@"

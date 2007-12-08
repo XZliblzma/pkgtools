@@ -1,0 +1,175 @@
+#!/bin/sh
+#
+# See the file `COPYRIGHT' for copyright and license information.
+#
+# Exit status:
+# 0 - All OK
+# 1 - File not found
+# 2 - Unknown package format
+# 3 - Specified --outdir does not exist
+# 4 - Package corrupt
+# 5 - deb or rpm: unable to get absolute paths of source or target package file
+# 6 - deb or rpm: unable to create a temporary directory (mktemp returned error)
+# 99 - Invalid parameters
+
+# Load shared functions:
+. /usr/share/pkgtools/functions.common.sh
+include explode
+
+# Do not overwrite existing files with '>'. This is to avoid symlink attacks:
+set -C
+
+usage() {
+  cat << EOF
+
+Convert packages between different compression formats. Packages that
+are already in specified format are skipped. If you convert multiple
+packages with one command you can also specify the new format multiple
+times if you like.
+
+Usage: convertpkg [options] package [[options2] package2 ...]
+
+Options:  -o dir, --outdir dir  Set output directory, defaults to the same
+                                directory as the source package is in.
+
+    Target package format:
+          -g, --tgz, --gzip
+          -l, --tlz, --lzma  (default)
+          -b, --tbz, --bzip2
+          -a, --tar
+
+EOF
+  exit 0
+}
+
+new_pkg_name() {
+  local oldname=$(basename "$1")
+  local newname=""
+  case "$oldname" in
+    *.rpm)  newname=$(echo "$oldname" | sed -rn 's#^(.+)-(.+)-([^-]+)\.([^.-]+)\.rpm$#\1-\2-\4-\3#p') ;;
+    *.deb)  newname=$(echo "$oldname" | sed -rn 's#^(.+)_(.+)-([^_]+)_([^._]+)\.deb$#\1-\2-\4-\3#p') ;;
+    *)      newname=$(package_strip_extension "$oldname") ;;
+  esac
+  # If the name of the source file was non-standard, default to full filename:
+  [ -z "$newname" ] && newname=$1
+  echo "$newname"
+}
+
+convert_foreign() {
+  local SOURCE CONVERT_TMP ERRORCODE OLD_PWD
+  if [ "$UID" != "0" ]; then
+    echo -e "\n  WARNING: Converting .rpm or .deb as non-root."
+    echo -n "$1: "
+  fi
+  # We need full paths to the package being converted and
+  # the new package file being created.
+  SOURCE=$(absolute_path "$1")
+  if [ $? != 0 ]; then
+    echo "Cannot get the full path of the package."
+    EXITSTATUS=5
+    return 1
+  fi
+  TARGET_FILE=$(absolute_path "$TARGET_FILE")
+  CONVERT_TMP=$(mktemp -dt convertpkg.XXXXXX)
+  if [ $? != 0 ]; then
+    echo "Unable to create a temporary directory."
+    exit 6
+  fi
+  OLD_PWD=$(pwd)
+  cd "$CONVERT_TMP"
+  mkdir pkg
+  cd pkg
+  explode "$SOURCE" > /dev/null 2> /dev/null
+  if [ $? != 0 ]; then
+    echo "Error while exploding the package."
+    EXITSTATUS=4
+    rm -rf "$CONVERT_TMP"
+    return 1
+  fi
+  makepkg -l y -c n "$TARGET_FILE" > /dev/null 2> /dev/null
+  ERRORCODE=$?
+  cd "$OLD_PWD" || exit 95
+  rm -rf "$CONVERT_TMP"
+  return $ERRORCODE
+}
+
+convert() {
+  echo -n "$1: "
+  case "$1" in
+    *.rpm) PKG_TYPE=rpm ;;
+    *.deb) PKG_TYPE=deb ;;
+    *)     PKG_TYPE=$(package_type "$1") ;;
+  esac
+  if [ -z "$OUT_DIR" ]; then
+    TARGET_FILE="$(dirname "$1")/$(new_pkg_name "$1").$TARGET_FORMAT"
+  else
+    TARGET_FILE="$OUT_DIR/$(new_pkg_name "$1").$TARGET_FORMAT"
+  fi
+  if [ ! -r "$1" ]; then
+    echo "File not found."
+    EXITSTATUS=1
+    return
+  elif [ "$PKG_TYPE" = "" ]; then
+    echo "Unknown package format."
+    EXITSTATUS=2
+    return
+  elif [ "$PKG_TYPE" = "$TARGET_FORMAT" ]; then
+    echo "Already in requested format."
+    return
+  elif [ -e "$TARGET_FILE" ]; then
+    echo "Already converted."
+    return
+  fi
+  case "$1" in
+    *.rpm|*.deb) convert_foreign "$1" ;;
+    *) uncompress_pkg "$1" | compress_pkg "$TARGET_FORMAT" > "$TARGET_FILE" ;;
+  esac
+  if [ $? != 0 ]; then
+    echo "FAILED."
+  else
+    echo "Done."
+  fi
+}
+
+check_dir() {
+  [ "$1" = "" ] && usage
+  if [ ! -d "$1" ]; then
+    echo "Specified directory does not exist: $1"
+    exit 3
+  fi
+  echo "$(cd "$1" && pwd)"
+}
+
+convertpkg_trapped() {
+  echo "Caught an interrupt, quitting cleanly..."
+  # Remove incomplete file:
+  [ -f "$TARGET_FILE" ] && rm -f "$TARGET_FILE"
+  # Remove temporary directory used when converting a .rpm or .deb:
+  [ -d "$CONVERT_TMP" ] && rm -rf "$CONVERT_TMP"
+  exit 130
+}
+
+trap convertpkg_trapped INT TERM
+
+EXITSTATUS=0
+TARGET_FORMAT=tlz
+unset OUT_DIR CONVERT_TMP
+
+[ $# = 0 ] && usage
+ARGS=$(getopt -n convertpkg -o -glbao:h \
+  -l tgz,gzip,tlz,lzma,tbz,bzip2,tar,outdir:,help -- "$@")
+[ $? != 0 ] && exit 99
+eval set -- "$ARGS"
+while [ $# != 0 ]; do
+  case "$1" in
+    -g|--tgz|--gzip)   TARGET_FORMAT=tgz ;;
+    -l|--tlz|--lzma)   TARGET_FORMAT=tlz ;;
+    -b|--tbz|--bzip2)  TARGET_FORMAT=tbz ;;
+    -a|--tar)          TARGET_FORMAT=tar ;;
+    -o|--outdir)       OUT_DIR=$(check_dir "$2"); shift 1 ;;
+    -h|--help)         usage ;;
+    --)                exit $EXITSTATUS ;;
+    *)                 convert "$1" ;;
+  esac
+  shift 1
+done

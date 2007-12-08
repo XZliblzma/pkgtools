@@ -1,0 +1,93 @@
+#!/bin/sh
+#
+# See the file `COPYRIGHT' for copyright and license information.
+#
+
+# Load shared functions:
+. /usr/share/pkgtools/functions.common.sh
+include remove
+include log
+
+usage() {
+  cat << EOF
+
+Usage: removepkg [options] package [package2 ... ]
+
+Options: -w, --warn      List files that would be removed, but do not
+                         remove them. Implies --verbose.
+
+         -R, --root dir  Use a different root directory. This option overrides
+                         the \$ROOT environment variable.
+
+         -v, --verbose   List all the files and directories that are removed.
+
+         -q, --quiet     Show only fatal errors.
+
+EOF
+  exit 0
+}
+
+# Parse options:
+[ $# = 0 ] && usage
+ARGS=$(getopt -n removepkg -o qvwR:h \
+  -l quiet,verbose,warn,root:,upgradepkg-quiet,help -- "$@")
+[ $? != 0 ] && exit 99
+eval set -- "$ARGS"
+unset ARGS
+WARN=remove     # Can be 'remove' or 'warn'.
+VERBOSE=normal  # Can be 'quiet', 'normal' or 'verbose'.
+while : ; do
+  case "$1" in
+    -q|--quiet)           VERBOSE=quiet ;;
+    -v|--verbose)         VERBOSE=verbose ;;
+    -w|--warn)            WARN=warn; VERBOSE=verbose ;;
+    -R|--root)            check_root_dir_exists "$2"; ROOT=$2; shift 1 ;;
+    --upgradepkg-quiet)   ;; # Ignored for compatibility with pkgtools tukaani_1.0.0
+    -h|--help)            usage ;;
+    --)                   shift 1; break ;;
+    *)                    exit_getopt_error ;;
+  esac
+  shift 1
+done
+[ $# = 0 ] && exit_no_packages_specified
+
+check_is_run_by_root
+
+initialize_variables_and_package_database
+
+[ "$VERBOSE" != "quiet" ] && echo
+
+if [ "$WARN" = "warn" ]; then
+  echo "Only warning... not actually removing any files. Here's what would"
+  echo "be removed (and left behind) if you removed the package(s):"
+fi
+
+EXITSTATUS=0
+
+for PKG; do
+  PKGNAME=$(package_fullname "$PKG")
+  # If we don't have a package match here, then we will attempt to find
+  # a package using the long name format (name-version-arch-build) for
+  # which the base package name was given.  On a properly-managed machine,
+  # there should only be one package installed with a given basename, but
+  # we don't enforce this policy.  If there's more than one, only one will
+  # be removed.  If you want to remove them all, you'll need to run
+  # removepkg again until it removes all the same-named packages.
+  if [ ! -e "$ADM_DIR/packages/$PKGNAME" ]; then
+    SHORT=$(package_basename "$PKGNAME")
+    for I in "$ADM_DIR/packages/$PKGNAME"* ; do
+      if [ "$SHORT" = "$(package_basename "$I")" ]; then
+        PKGNAME=$(basename "$I")
+      fi
+    done
+  fi
+  if [ ! -r "$ADM_DIR/packages/$PKGNAME" ]; then
+    echo "No such package: $ADM_DIR/packages/$PKGNAME. Can't remove."
+    EXITSTATUS=1
+    continue
+  fi
+  remove_pkg "$PKGNAME" $WARN $VERBOSE || { EXITSTATUS=2; break; }
+  [ "$VERBOSE" != "quiet" ] && echo
+done
+
+exit $EXITSTATUS

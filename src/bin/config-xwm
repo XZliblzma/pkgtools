@@ -1,0 +1,164 @@
+#!/bin/sh
+#
+# Original version:
+#   Copyright 1999, 2002  Patrick Volkerding, Moorhead, Minnesota USA
+#   All rights reserved.
+#
+# Modified to support /opt/*/etc/X11/xinit/xinitrc.* and structured
+# the script for easier editing:
+#   Copyright (C) 2005 Lasse Collin <lasse.collin@tukaani.org>
+#
+# Redistribution and use of this script, with or without modification, is
+# permitted provided that the following conditions are met:
+#
+# 1. Redistributions of this script must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+#
+#  THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED
+#  WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+#  MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO
+#  EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+#  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+#  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+#  OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+#  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+#  OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+#  ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+
+# Create temporary directory and set it to be removed automatically:
+TMP=$(mktemp -dt config-xwm.XXXXXX) || exit $?
+trap "rm -rf \"$TMP\"" INT TERM EXIT
+
+# Set some variables:
+export LC_ALL=C
+unset POSIXLY_CORRECT
+[ -z "$UID" ] && UID=$(id -u)
+
+# Do we already have an existing default?
+unset PRESELECT
+if [ -L /etc/X11/xinit/xinitrc ]; then
+  CURRENT=$(readlink /etc/X11/xinit/xinitrc)
+  PRESELECT=" --default-item ${CURRENT##*/xinitrc.} "
+fi
+
+# Figure out who we are and set up some background information:
+if echo "$DIALOGOPTS" | grep -qi installer; then
+  DIALOGOPTS=  # Don't change backtitle in the installer.
+elif [ "$UID" = "0" ]; then
+  DIALOGOPTS="--backtitle \"Setting system-wide default window manager in /etc/X11/xinit/\""
+else
+  DIALOGOPTS="--backtitle \"Setting default window manager in $HOME/.xinitrc\""
+fi
+export DIALOGOPTS
+
+# The list of known desktop environments and window managers
+# with short descriptions:
+get_list() {
+  cat << "EOF"
+kde       KDE: K Desktop Environment
+gnome     GNOME: GNU Network Object Model Environment
+xfce      XFce: The Cholesterol Free Desktop Environment
+blackbox  The blackbox window manager
+fluxbox   The fluxbox window manager
+e         Enlightenment
+wmaker    WindowMaker
+fvwm2     F(?) Virtual Window Manager (version 2.xx)
+fvwm95    FVWM2 with a Windows look and feel
+icewm     IceWM
+sawfish   Sawfish without GNOME
+twm       Tab Window Manager (very basic)
+mwm       Motif WM
+EOF
+}
+
+# Make a list of available xinitrc scripts:
+SCRIPTS=$(ls -1 /etc/X11/xinit/xinitrc.* \
+    /opt/*/etc/X11/xinit/xinitrc.* 2>/dev/null \
+    | sed 's#^.*/xinitrc.##; /^\*/d'\
+    | sort -u \
+    | sed -n '
+        # Print the desktop environments before window managers:
+        /\(gnome\|kde\|xfce\)/{
+          p
+          $b end
+          b
+        }
+        # Store the name of the window manager to the hold space:
+        H
+        :end
+        # If at the last line, print the list of window managers and quit:
+        ${
+          g
+          p
+          q
+        }')
+
+# Create the menu entries:
+for I in $SCRIPTS; do
+  DESC=$(get_list | sed -n "s|^$I *||p")
+  echo "$I \"$DESC\" \\" >> "$TMP/tmpargs"
+done
+
+# Quit if no desktop environments or window managers were found:
+if [ ! -f "$TMP/tmpargs" ]; then
+  echo "No desktop environments or window managers were found."
+  exit
+fi
+
+# Show the menu:
+dialog --title "SELECT DEFAULT WINDOW MANAGER / DESKTOP ENVIRONMENT" \
+    $PRESELECT --menu \
+"Please select the default desktop environment or window manager to use with \
+the X Window System.  This will define the style of graphical user interface \
+the computer uses.  \
+GNOME, KDE and XFce are complete desktop environments and any of them should \
+be easy to use even for less experienced users. \
+Other options are primarily window managers, which are usually lighter \
+on resources and have their own special features.  \
+The list below includes only desktop environments and window managers \
+currently installed on your system." \
+    19 76 5 --file "$TMP/tmpargs" 2> "$TMP/tmpanswer"
+if [ $? != 0 ]; then
+  echo "Canceled."
+  exit
+fi
+OUTPUT=$(cat "$TMP/tmpanswer")
+
+# Locate the xinitrc file. If the same file exist in multiple places,
+# prefer the one in /opt:
+FILE=
+for I in /opt/*/etc/X11/xinit /etc/X11/xinit; do
+  if [ -f "$I/xinitrc.$OUTPUT" ]; then
+    FILE="$I/xinitrc.$OUTPUT"
+    break
+  fi
+done
+
+if [ -z "$FILE" ]; then
+  # Someone probably did something behind our back, or we hit a bug:
+  echo "Error: Unable to locate xinitrc.$OUTPUT."
+  exit
+fi
+
+# If xwmconfig is run by root, it changes the system-wide default for users
+# that do not have a $HOME/.xinitrc:
+if [ "$UID" = "0" ]; then
+  rm -f /etc/X11/xinit/xinitrc
+  ln -sf "$FILE" /etc/X11/xinit/xinitrc
+fi
+
+# Also set up a new $HOME/.xinitrc:
+if [ "$HOME" != "/" ]; then
+  if [ -e "$HOME/.xinitrc" -a ! -f "$HOME/.xinitrc" ]; then
+    echo "Error: $HOME/.xinitrc exists but is not a file."
+    exit
+  elif [ -e "$HOME/.xinitrc" ]; then
+    rm -rf "$HOME/.xinitrc-backup"
+    mv -f "$HOME/.xinitrc" "$HOME/.xinitrc-backup"
+  fi
+  cat "$FILE" > "$HOME/.xinitrc"
+fi
+
+# All done.
+exit

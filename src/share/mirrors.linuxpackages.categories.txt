@@ -1,0 +1,3 @@
+Slackware-10.0 "Packages built for Slackware 10.0" \
+Slackware-10.1 "Packages built for Slackware 10.1" \
+Slackware-10.2 "Packages built for Slackware 10.2" \

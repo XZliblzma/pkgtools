@@ -1,0 +1,672 @@
+#!/bin/sh
+#
+# See the file `COPYRIGHT' for copyright and license information.
+#
+# Code from slapt-get, copyright by Jason Woodward:
+#     #slapt-get@Freenode 2005-07-18 22:28 UTC:
+#     <+malloc> the scripts within the slapt-get FAQ i grant you specific
+#               permission to use that under the BSD license
+#
+
+# Load shared functions:
+. /usr/share/pkgtools/functions.common.sh
+
+TMP=$(mktemp -dt makerepo.XXXXXX) || exit $?
+
+# Make sure that temp dir gets removed on exit:
+trap "exit_makerepo 1" INT TERM EXIT
+
+usage() {
+  cat << "EOF"
+
+Make a repository compatible with Tukaani pkgtool and slapt-get.
+
+Usage: makerepo [options] directory
+
+Options:  -f, --filelist      Create FILELIST.TXT
+          -a, --manifest      Create MANIFEST.bz2
+          -A, --manifest-lzma Create MANIFEST.lzma
+          -c, --changelog     Create ChangeLog.txt, implies --filelist
+          -p, --packages      Create/Update PACKAGES.TXT
+          -m, --md5           Create CHECKSUMS.md5
+          -s, --sha1          Create CHECKSUMS.sha1
+          -g, --only-gzip     Create only gzipped files (default: create both)
+          -G, --no-gzip       Create only uncompressed files
+          -o, --official      Repository has similar directory structure than
+                              the official Slackware(R) repository has. In
+                              practice it is enough that you have directory
+                              named "slackware" containing packages in
+                              categorized in directories like ap, l, n or xap.
+          -n, --no-cache      Do not use information from old PACKAGES.TXT
+                              and CHECKSUMS.*.
+
+Options affecting the PACKAGES.TXT:
+          -S, --slapt         Include required, conflicts and suggests
+                              fields used by slapt-get.
+          -M, --mirror <URL>  Specify the URL for the MIRROR field
+                              supported by slapt-get. If URL is omitted
+                              tukrepo will use existing LOCATION fields.
+
+slapt-get extensions (-S and -M) are not used by Tukaani pkgtool.
+
+If none of -faAcpms is is given makerepo defaults to -fcpm.
+
+EOF
+  # --p-md5         Include MD5 sums in the PACKAGES.TXT.
+  # --p-sha1        Include SHA1 sums in the PACKAGES.TXT.
+  #
+  # --p-md5 and --p-sha1 are currently *strongly* discouraged since they break
+  #compatibility with most tools. Also pkgtool doesn't currently take advantage
+  #of having checksums in PACKAGES.TXT.
+  exit_makerepo 0
+}
+
+# Print the name of the file which is newer. If neither of the files
+# exist, return error.
+newer_file() {
+  if [ -e "$1" -a -e "$2" ]; then
+    [ "$1" -nt "$2" ] && echo "$1" || echo "$2"
+  elif [ -e "$1" ]; then
+    echo "$1"
+  elif [ -e "$2" ]; then
+    echo "$2"
+  else
+    return 1
+  fi
+  return 0
+}
+
+catzcat() {
+  if [ -f "$1.gz" ]; then
+    gunzip -c "$1.gz"
+  elif [ -f "$1" ]; then
+    cat "$1"
+  fi
+}
+
+# Creates $TMP/pkglist
+create_safelist() {
+  local DIRNAME
+  DIRNAME=${1##*/}
+  [ -f "$TMP/pkglist.$DIRNAME" ] && return 0
+  # Create a list of package files currently in the repository:
+  find "$1" -follow -name '*.tgz' -or -name '*.tlz' -or -name '*.tbz' \
+      | sed '
+          \,/source/,d
+          s,^\./,,
+          s,^\(.*\)/\([^/]*\)$,\2 \1/\2,' \
+      | sort \
+      | cut -f 2 -d ' ' \
+      | sort > "$TMP/pkglist_in"
+  # Verify the filenames:
+  sed -n "/^\\($ALLOWED_DIRCHARS\\+\\/\\|\\)$ALLOWED_FILECHARS\\+\$/p" "$TMP/pkglist_in" \
+      | sed -n '/^\(.*\/\|\)[^/]\+-[^-/]\+-[^-/]\+-[^-/]\+\.\(tgz\|tlz\|tbz\|tar\)$/p' \
+      > "$TMP/pkglist.$DIRNAME"
+  sort "$TMP/pkglist_in" "$TMP/pkglist.$DIRNAME" | uniq -u > "$TMP/invalid"
+  if [ -s "$TMP/invalid" ]; then
+    # We have a problem, found invalid package names.
+    echo "WARNING: These packages will be ignored:"
+    cat "$TMP/invalid"
+    echo
+    sleep 3
+  fi
+}
+
+slapt_extract() {
+  # Incompatible with BusyBox' xargs: :-/
+  [ -f "$1" ] && xargs -r -iZ echo -n "Z," < "$1" | sed -e "s/,$//"
+  return 0
+}
+
+examine_package_contents() {
+  echo -n " uncompress"
+  mknod "$TMP/fifo" p
+  ( uncompress_pkg "$1" | tee "$TMP/fifo" | $TAR xf - -C "$TMP" install \
+        > /dev/null 2> /dev/null ) &
+  P_USIZE=$(wc -c < "$TMP/fifo" | tr -d ' ')
+  P_USIZE=$((P_USIZE / 1024))
+  rm -f "$TMP/fifo"
+  wait # Wait for tar.
+  # Nice trick to avoid blank lines in P_DESC:
+  P_DESC=$(echo; grep "^$(package_basename "$1"):" "$TMP/install/slack-desc" 2> /dev/null)
+  P_DESC="PACKAGE DESCRIPTION:$P_DESC"
+  if [ $O_SLAPT = 1 ]; then
+    # See packagestxt_parse() for reasoning of the extra space.
+    P_REQUIRED="$(slapt_extract "$TMP/install/slack-required") "
+    P_CONFLICTS="$(slapt_extract "$TMP/install/slack-conflicts") "
+    P_SUGGESTS="$(slapt_extract "$TMP/install/slack-suggests") "
+  fi
+  rm -rf "$TMP/install"
+}
+
+packagestxt_parse() {
+  local OLD_IFS LINE VALUE BASENAME FILENAME
+  OLD_IFS=$IFS
+  IFS='
+'
+  BASENAME=$(package_basename "$2")
+  FILENAME=$(echo "$2" | sed 's,^.*/,,;s/\./\\./g')
+  for LINE in $(sed -n "/^PACKAGE NAME: *$FILENAME *$/,/^$/{p;/^$/q}" "$1" | tr -s ' '); do
+    case "$LINE" in
+      "PACKAGE NAME:"*)
+        P_NAME=${LINE#"PACKAGE NAME:"}
+        P_NAME=${P_NAME#' '}
+        ;;
+      "PACKAGE MIRROR:"*)
+        P_MIRROR=${LINE#"PACKAGE MIRROR:"}
+        P_MIRROR=${P_MIRROR#' '}
+        ;;
+      "PACKAGE LOCATION:"*)
+        ;; # Ignoring, this is refreshed always.
+      "PACKAGE SIZE (compressed):"*)
+        P_CSIZE=${LINE#"PACKAGE SIZE (compressed):"}
+        P_CSIZE=${P_CSIZE#' '}
+        P_CSIZE=${P_CSIZE%%' '*}
+        ;;
+      "PACKAGE SIZE (uncompressed):"*)
+        P_USIZE=${LINE#"PACKAGE SIZE (uncompressed):"}
+        P_USIZE=${P_USIZE#' '}
+        P_USIZE=${P_USIZE%%' '*}
+        ;;
+      "PACKAGE MD5 SUM:"*)
+        P_MD5SUM=${LINE#"PACKAGE MD5 SUM:"}
+        P_MD5SUM=${P_MD5SUM#' '}
+        ;;
+      "PACKAGE SHA1 SUM:"*)
+        P_SHA1SUM=${LINE#"PACKAGE SHA1 SUM:"}
+        P_SHA1SUM=${P_SHA1SUM#' '}
+        ;;
+      # The next three are not used by pkgtool but slapt-get. By adding a space
+      # after $VALUE we can later detect if REQUIRES/CONFLICTS/SUGGESTS fields
+      # were present in the original PACKAGES.TXT also when they are empty.
+      "PACKAGE REQUIRED:"*)
+        P_REQUIRED="${LINE#"PACKAGE REQUIRED:"} "
+        P_REQUIRED=${P_REQUIRED#' '}
+        ;;
+      "PACKAGE CONFLICTS:"*)
+        P_CONFLICTS="${LINE#"PACKAGE CONFLICTS:"} "
+        P_CONFLICTS=${P_CONFLICTS#' '}
+        ;;
+      "PACKAGE SUGGESTS:"*)
+        P_SUGGESTS="${LINE#"PACKAGE SUGGESTS:"} "
+        P_SUGGESTS=${P_SUGGESTS#' '}
+        ;;
+      "PACKAGE DESCRIPTION:"*)
+        ;; # Ignore
+      "PACKAGE "*:)
+        echo "WARNING: Skipping unknown field: $LINE"
+        ;;
+      "$BASENAME:"*)
+        P_DESC="$P_DESC
+$LINE"
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+  P_DESC="PACKAGE DESCRIPTION:$P_DESC"
+  IFS=$OLD_IFS
+}
+
+# PACKAGES.TXT
+create_packagestxt() {
+  local I DIRNAME
+  echo
+  echo "Creating $1/PACKAGES.TXT"
+  DIRNAME=${1##*/}
+
+  # Cache file:
+  if [ "$NO_CACHE" = 1 ]; then
+    : > "$TMP/cache"
+  elif [ -f "$1/PACKAGES.TXT" ]; then
+    cat "$1/PACKAGES.TXT" > "$TMP/cache"
+  elif [ -f "$1/PACKAGES.TXT.gz" ]; then
+    gunzip -c "$1/PACKAGES.TXT.gz" > "$TMP/cache"
+  fi
+  # Create the list of valid package names:
+  create_safelist "$1"
+
+  # Create the new PACKAGES.TXT with requested fields:
+  for I in $(cat "$TMP/pkglist.$DIRNAME"); do
+    # A kind of progress indicator:
+    printf "%-60s" "$I:"
+    # Package may be already in PACKAGES.TXT. We save a lot of time
+    # by reusing that information:
+    unset P_NAME P_MIRROR P_LOCATION P_CSIZE P_USIZE P_MD5SUM P_SHA1SUM \
+        P_REQUIRED P_CONFLICTS P_SUGGESTS P_DESC
+    if [ -s "$TMP/cache" ]; then
+      packagestxt_parse "$TMP/cache" "$I"
+    else
+      examine_package_contents "$I"
+    fi
+    # Set the variables:
+    [ -z "$P_NAME" ] && P_NAME=${I##*/}
+    # Refresh P_LOCATION since the package may be moved:
+    P_LOCATION="./${I%/*}"
+    [ "$P_LOCATION" = "./$I" ] && P_LOCATION=.
+    P_CSIZE=${P_CSIZE:-"$(($(ls -lL "$I" | tr -s ' ' | cut -f 5 -d ' ') / 1024))"}
+    [ -z "$P_USIZE" ] && examine_package_contents "$I"
+    # Optional fields:
+    if [ $O_MD5SUM = 1 -a ${#P_MD5SUM} != 32 ];then
+      echo -n " MD5"
+      P_MD5SUM=$(md5sum < "$I" | cut -f 1 -d ' ')
+    fi
+    if [ $O_SHA1SUM = 1 -a ${#P_SHA1SUM} != 40 ]; then
+      echo -n " SHA1"
+      P_SHA1SUM=$(sha1sum < "$I" | cut -f 1 -d ' ')
+    fi
+    if [ $O_SLAPT = 1 -a \( -z "$P_REQUIRED" -o -z "$P_CONFLICTS" \
+        -o -z "$P_SUGGESTS" \) ]; then
+      examine_package_contents "$I"
+    fi
+    # Set mirror after all examine_pakcage_contents commands because we want
+    # this to be overridable by a command line option:
+    P_MIRROR=${MIRROR:-"$P_MIRROR"}
+    # Write the entry to a preliminary PACKAGES.TXT file:
+    {
+      echo "PACKAGE NAME:                 $P_NAME"
+      [ $O_MIRROR = 1 ] && echo "PACKAGE MIRROR:  $P_MIRROR"
+      echo "PACKAGE LOCATION:             $P_LOCATION"
+      printf "PACKAGE SIZE (compressed):    %6d K\n" "$P_CSIZE"
+      printf "PACKAGE SIZE (uncompressed):  %6d K\n" "$P_USIZE"
+      [ $O_MD5SUM = 1 ] && echo "PACKAGE MD5 SUM:              $P_MD5SUM"
+      [ $O_SHA1SUM = 1 ] && echo "PACKAGE SHA1 SUM:             $P_SHA1SUM"
+      if [ $O_SLAPT = 1 ]; then
+        echo "PACKAGE REQUIRED:  $P_REQUIRED"
+        echo "PACKAGE CONFLICTS:  $P_CONFLICTS"
+        echo "PACKAGE SUGGESTS:  $P_SUGGESTS"
+      fi
+      echo "$P_DESC"
+      # Empty line works as a separator:
+      echo
+    } >> "$TMP/txt"
+    # Collect statistics:
+    TOTAL_CSIZE=$((TOTAL_CSIZE + P_CSIZE))
+    TOTAL_USIZE=$((TOTAL_USIZE + P_USIZE))
+    echo " OK"
+  done
+
+  # Convert from KiB to MiB:
+  TOTAL_CSIZE=$((TOTAL_CSIZE / 1024))
+  TOTAL_USIZE=$((TOTAL_USIZE / 1024))
+
+  # Add the header information:
+  cat << EOF > "$TMP/PACKAGES.TXT"
+
+PACKAGES.TXT;  $(date)
+
+This file provides details on the packages found
+in the $1/ directory.
+
+EOF
+  printf "Total size of all packages (compressed) :    %5d MB\n" "$TOTAL_CSIZE" >> "$TMP/PACKAGES.TXT"
+  printf "Total size of all packages (uncompressed) :  %5d MB\n" "$TOTAL_USIZE" >> "$TMP/PACKAGES.TXT"
+  echo >> "$TMP/PACKAGES.TXT"
+  echo >> "$TMP/PACKAGES.TXT"
+
+  # Remove trailing spaces and append to the final PACKAGES.TXT:
+  sed 's/ *$//' "$TMP/txt" >> "$TMP/PACKAGES.TXT"
+  rm -f "$TMP/txt"
+}
+
+# FILELIST.TXT
+create_filelist() {
+  echo
+  echo -n "Creating $1/FILELIST.txt"
+  date > "$TMP/FILELIST.TXT"
+  echo >> "$TMP/FILELIST.TXT"
+  echo "Here is the file list for this directory." >> "$TMP/FILELIST.TXT"
+  echo >> "$TMP/FILELIST.TXT"
+  (
+    cd "$1"
+    find . -follow -print \
+        | sort \
+        | tr '\n' '\0' \
+        | xargs -0r ls -ldL --time-style=long-iso \
+        >> "$TMP/FILELIST.TXT"
+  )
+}
+
+checksums_helper() {
+  # $1 = directory ; $2 = "md5" or "sha1"
+  local CHKSUMFILE=$(newer_file "$1/CHECKSUMS.$2" "$1/CHECKSUMS.$2.gz")
+  find "$1" -follow -type f -print \
+      | sed '/\(CHECKSUMS\|FILELIST\.TXT\|isolinux\.bin\)/d' \
+      | sort \
+      > "$TMP/tmplist"
+  if [ -n "$CHKSUMFILE" -a "$NO_CACHE" = "0" ]; then
+    # Pick filenames that have no checksum in cache:
+    catzcat "$1/CHECKSUMS.$2" \
+        | sed -n 's#^[0-9a-f]\{32,40\}  ##p' \
+        | sort -u \
+        | comm -23 "$TMP/tmplist" - \
+        > "$TMP/chktmp.1"
+    # Pick files that are newer than the cache file:
+    find "$1" -follow -type f -newer "$CHKSUMFILE" -print \
+        | sort -u - "$TMP/chktmp.1" \
+        > "$TMP/chktmp.2"
+    # Calculate the new checksums:
+    tr '\n' '\0' < "$TMP/chktmp.2" | xargs -0r $2sum >> "$TMP/CHECKSUMS.$2"
+    # Read the rest of the checksums from the cache file and create
+    # a new checksum file:
+    catzcat "$1/CHECKSUMS.md5" \
+        | sed -n 's#^\([0-9a-f]\{32,40\}\)  \(.\+\)$#\2  \1#p' \
+        | sort - "$TMP/chktmp.2" \
+        | sed '
+            s#^\(.*\)  \([0-9a-f]\{32,40\}\)$#\2  \1#
+            /^[0-9a-f]\{32,40\}  /!{
+              $d
+              N
+              /^\(.*\)\n\([0-9a-f]\{32,40\}\)  \1$/d
+              D
+            }' \
+        >> "$TMP/CHECKSUMS.$2"
+    rm -f "$TMP/chktmp.1" "$TMP/chktmp.2"
+  else
+    tr '\n' '\0' < "$TMP/tmplist" | xargs -0r $2sum >> "$TMP/CHECKSUMS.$2"
+  fi
+  rm -f "$TMP/tmplist"
+}
+
+# CHECKSUMS.md5
+create_md5sums() {
+  echo
+  echo -n "Creating $1/CHECKSUMS.md5"
+  cat << EOF > "$TMP/CHECKSUMS.md5"
+These are the MD5 message digests for the files in this directory.
+If you want to test your files, use 'md5sum' and compare the values to
+the ones listed here.
+
+To test all these files, use this command:
+
+md5sum -c CHECKSUMS.md5 | less
+
+'md5sum' can be found in the GNU coreutils package on ftp.gnu.org in
+/pub/gnu, or at any GNU mirror site.
+
+MD5 message digest                Filename
+EOF
+  checksums_helper "$1" md5
+}
+
+# CHECKSUMS.sha1
+create_sha1sums() {
+  echo
+  echo -n "Creating $1/CHECKSUMS.sha1"
+  cat << EOF > "$TMP/CHECKSUMS.sha1"
+These are the SHA1 message digests for the files in this directory.
+If you want to test your files, use 'sha1sum' and compare the values to
+the ones listed here.
+
+To test all these files, use this command:
+
+sha1sum -c CHECKSUMS.sha1 | less
+
+'sha1sum' can be found in the GNU coreutils package on ftp.gnu.org in
+/pub/gnu, or at any GNU mirror site.
+
+SHA1 message digest                       Filename
+EOF
+  checksums_helper "$1" sha1
+}
+
+# MANIFEST
+create_manifest() {
+  local J DIRNAME
+  echo
+  echo "Creating $1/MANIFEST.bz2"
+  DIRNAME=${1##*/}
+
+  # Create the list of packages:
+  create_safelist "$1"
+
+  # Create uncompressed cache file. lzma is much faster to decompress,
+  # prefer it over bzip2:
+  if [ "$NO_CACHE" = "1" ]; then
+    : > "$TMP/cache"
+  elif [ -f "$1/MANIFEST.lzma" ]; then
+    uncompress_pkg "$1/MANIFEST.lzma" > "$TMP/cache"
+  elif [ -f "$1/MANIFEST.bz2" ]; then
+    uncompress_pkg "$1/MANIFEST.bz2" > "$TMP/cache"
+  else
+    : > "$TMP/cache"
+  fi
+
+  : > "$TMP/MANIFEST"
+
+  for J in $(cat "$TMP/pkglist.$DIRNAME"); do
+    # A kind of progress indicator:
+    printf "%-60s" "$J:"
+
+    # Add the header.
+    {
+      echo "++========================================"
+      echo "||"
+      echo "||   Package:  ./$J"
+      echo "||"
+      echo "++========================================"
+    } >> "$TMP/MANIFEST"
+
+    # Look from the cache first.
+    if [ -s "$TMP/cache" ]; then
+      sed -n "
+            \%^||   Package:  \./$J\$%{
+              n
+              n
+              # Checking this just to be sure:
+              /++========================================/{
+                # Print all the lines until empty line, and return successfully.
+                :loop
+                n
+                /^ *$/q 0
+                p
+                b loop
+              }
+            }
+            # Return non-zero to indicate that no match was found.
+            \$q 1" \
+          "$TMP/cache" >> "$TMP/MANIFEST"
+    else
+      false
+    fi
+
+    # If the package filelist wasn't found in cache, we need to look
+    # inside the package file.
+    if [ $? != 0 ]; then
+      echo -n ' uncompress'
+      uncompress_pkg "$J" | tar tvvf - >> "$TMP/MANIFEST"
+      if [ $? != 0 ]; then
+        echo ' FAILED'
+        exit_makerepo 1
+      fi
+    fi
+
+    # Append two empty lines as footer:
+    echo -en '\n\n' >> "$TMP/MANIFEST"
+
+    echo ' OK'
+  done
+
+  # MANIFEST should be compressed with bzip2 and optionally with lzma.
+  if [ -n "$MANIFESTBZ2" ]; then
+    compress_pkg tbz < "$TMP/MANIFEST" > "$TMP/MANIFEST.bz2"
+  fi
+  if [ -n "$MANIFESTLZMA" ]; then
+    [ -z "$PKGTOOLS_LZMA" ] && check_cmd_lzma
+    [ "$PKGTOOLS_LZMA" != "none" ] && compress_pkg tlz < "$TMP/MANIFEST" > "$TMP/MANIFEST.lzma"
+  fi
+}
+
+# GPG signatures (TODO)
+#create_signatures() {
+#
+#}
+
+# ChangeLog
+create_changelog() {
+  echo
+  echo -n "Creating $1/ChangeLog.txt"
+  catzcat "$1/FILELIST.TXT" \
+      | sed -rn '/\/source\//d; /\.(tgz|tbz|tlz|tar)$/{s/^.* //p}' \
+      | sort \
+      > "$TMP/oldlist"
+  catzcat "$TMP/FILELIST.TXT" \
+      | sed -rn '/\/source\//d; /\.(tgz|tbz|tlz|tar)$/{s/^.* //p}' \
+      | sort \
+      > "$TMP/newlist"
+  comm -23 "$TMP/oldlist" "$TMP/newlist" \
+      | sed -r 's/-[^-]+-[^-]+-[^-]+$/%0%&/' \
+      > "$TMP/removedlist"
+  comm -13 "$TMP/oldlist" "$TMP/newlist" \
+      | sed -r 's/-[^-]+-[^-]+-[^-]+$/%1%&/' \
+      > "$TMP/addedlist"
+  sort "$TMP/removedlist" "$TMP/addedlist" \
+      | sed -r '
+          s#^\./slackware/#/#
+          $G' \
+      | sed -rn '
+          N
+          s#^(.*/)([^/]+)%0%-([^-/]+)-[^-/]+-[^-/]+\n\1\2%1%-\3-([^-/]+-[^-/]+)$#\1\2-\3-\4: Rebuilt \2.#p
+          t
+          s#^(.*/)([^/]+)%0%-([^-/]+)-[^-/]+-[^-/]+\n\1\2%1%-([^-/]+)-([^-/]+-[^-/]+)$#\1\2-\4-\5: Upgraded \2 from \3 to \4.#p
+          t
+          s#^(.*/)([^/]+)%0%-([^-/]+-[^-/]+-[^-/]+)\n#\1\2-\3: Removed \2.\n#
+          s#^(.*/)([^/]+)%1%-([^-/]+)-([^-/]+-[^-/]+)\n#\1\2-\3-\4: Added \2 \3.\n#
+          P
+          D
+      ' | sed 's#^\./##; s#^/\+##' \
+      > "$TMP/ChangeLog.in"
+  if [ -s "$TMP/ChangeLog.in" ]; then
+    date '+%Y-%m-%d %H:%M%z (%a)' > "$TMP/ChangeLog.txt"
+    cat "$TMP/ChangeLog.in" >> "$TMP/ChangeLog.txt"
+    echo '+--------------------------+' >> "$TMP/ChangeLog.txt"
+    catzcat "ChangeLog.txt" >> "$TMP/ChangeLog.txt"
+  fi
+}
+
+
+exit_makerepo() {
+  trap - EXIT
+  rm -rf "$TMP"
+  echo
+  exit $1
+}
+
+# Default settings
+O_SLAPT=0
+O_MD5SUM=0
+O_SHA1SUM=0
+O_MIRROR=0
+O_GZIPPED=1
+O_GUNZIPPED=1
+NO_CACHE=0
+
+[ $# = 0 ] && usage
+ARGS=$(getopt -n makerepo -o paAfcmsogGSM::nh \
+    -l packages,manifest,manifest-lzma,filelist,changelog,md5,sha1,official, \
+    -l only-gzip,no-gzip,slapt,mirror::,p-md5,p-sha1,no-cache,help -- "$@")
+[ $? != 0 ] && exit_makerepo 99
+eval set -- "$ARGS"
+unset ARGS PACKAGESTXT MANIFEST MANIFESTBZ2 MANIFESTLZMA \
+    MD5SUMS SHA1SUMS FILELISTTXT CHANGELOG OFFICIAL_REPO
+while [ $# != 0 ]; do
+  case "$1" in
+    -p|--packages)      PACKAGESTXT=yes ;;
+    -a|--manifest)      MANIFEST=yes; MANIFESTBZ2=yes ;;
+    -A|--manifest-lzma) MANIFEST=yes; MANIFESTLZMA=yes ;;
+    -m|--md5)           MD5SUMS=yes ;;
+    -s|--sha1)          SHA1SUMS=yes ;;
+    -f|--filelist)      FILELISTTXT=yes ;;
+    -c|--changelog)     CHANGELOG=yes; FILELISTTXT=yes ;; # Needs FILELIST.TXT
+    -o|--official)      OFFICIAL_REPO=yes ;;
+    -g|--only-gzip)     O_GZIPPED=1; O_GUNZIPPED=0 ;;
+    -G|--no-gzip)       O_GZIPPED=0; O_GUNZIPPED=1 ;;
+    -S|--slapt)         O_SLAPT=1 ;;
+    -M|--mirror)        O_MIRROR=1; MIRROR=$2; shift 1 ;;
+    --p-md5)            O_MD5SUM=1 ;;
+    --p-sha1)           O_SHA1SUM=1 ;;
+    -n|--no-cache)      NO_CACHE=1 ;;
+    -h|--help)          usage ;;
+    --)                 shift; break ;;
+    *)                  exit_getopt_error ;;
+  esac
+  shift 1
+done
+
+if [ $# != 1 ]; then
+  echo "Invalid argument count. Try 'makerepo --help'."
+  exit_makerepo 99
+fi
+
+if [ ! -d "$1" ]; then
+  echo "Directory '$1' does not exist."
+  exit_makerepo 1
+fi
+cd "$1"
+
+[ "$OFFICIAL_REPO" = "yes" ] \
+    && DIRLIST='./slackware ./contrib ./extra ./pasture ./testing' \
+    || DIRLIST=.
+
+for I in $DIRLIST; do
+  if [ -d "$I" ]; then
+    if [ -z "$PACKAGESTXT$MANIFEST$FILELISTTXT$MD5SUMS$SHA1SUMS$CHANGELOG" ]; then
+      create_packagestxt "$I"
+      create_manifest "$I"
+      create_md5sums "$I"
+#       create_sha1sums "$I"
+    else
+      [ -n "$PACKAGESTXT" ] && create_packagestxt "$I"
+      [ -n "$MANIFEST" ] && create_manifest "$I"
+      [ -n "$MD5SUMS" ] && create_md5sums "$I"
+      [ -n "$SHA1SUMS" ] && create_sha1sums "$I"
+    fi
+    for J in PACKAGES.TXT CHECKSUMS.md5 CHECKSUMS.sha1 ChangeLog.txt; do
+      [ ! -f "$TMP/$J" ] && continue
+      # If they are symlinks, unwanted things can happen:
+      [ -L "$I/$J" ] && rm -f "$I/$J"
+      [ -L "$I/$J.gz" ] && rm -f "$I/$J.gz"
+      [ "$O_GUNZIPPED" = "1" ] && cat "$TMP/$J" > "$I/$J"
+      [ "$O_GZIPPED" = "1" ] && gzip -9c "$TMP/$J" > "$I/$J.gz"
+      rm -f "$TMP/$J"
+    done
+    if [ -f "$TMP/MANIFEST.bz2" ]; then
+      [ -L "$I/$MANIFEST.bz2" ] && rm -f "$I/$MANIFEST.bz2"
+      cat "$TMP/MANIFEST.bz2" > "$I/MANIFEST.bz2"
+      if [ -f "$TMP/MANIFEST.lzma" ]; then
+        [ -L "$I/$MANIFEST.lzma" ] && rm -f "$I/$MANIFEST.lzma"
+        cat "$TMP/MANIFEST.lzma" > "$I/MANIFEST.lzma"
+      else
+        # Don't leave outdated files.
+        [ -e "$I/$MANIFEST.lzma" ] && rm -f "$I/$MANIFEST.lzma"
+      fi
+    fi
+  fi
+done
+
+if [ -z "$PACKAGESTXT$MANIFEST$FILELISTTXT$MD5SUMS$SHA1SUMS" \
+    -o -n "$FILELISTTXT" ]; then
+  create_filelist .
+  # Creating ChangeLog requires both old and new FILELIST.TXT.
+  if [ -z "$PACKAGESTXT$MANIFEST$FILELISTTXT$MD5SUMS$SHA1SUMS" \
+      -o -n "$CHANGELOG" ]; then
+    create_changelog .
+  fi
+  if [ "$O_GUNZIPPED" = "1" ]; then
+    cat "$TMP/FILELIST.TXT" > FILELIST.TXT
+    [ -f "$TMP/ChangeLog.txt" ] && cat "$TMP/ChangeLog.txt" > ChangeLog.txt
+  fi
+  if [ "$O_GZIPPED" = "1" ]; then
+    gzip -9c "$TMP/FILELIST.TXT" > FILELIST.TXT.gz
+    [ -f "$TMP/ChangeLog.txt" ] && gzip -9c "$TMP/ChangeLog.txt" > ChangeLog.txt.gz
+  fi
+fi
+
+if [ "$OFFICIAL_REPO" = "yes" ]; then
+  for I in {PACKAGES.TXT,CHECKSUMS.md5,CHECKSUMS.sha1}{,.gz}; do
+    [ -e "slackware/$I" ] && ln -sf "slackware/$I" .
+  done
+fi
+
+exit_makerepo 0

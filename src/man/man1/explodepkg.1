@@ -1,0 +1,56 @@
+.TH EXPLODEPKG 1 "24 Dec 2005" "Tukaani Linux"
+.SH NAME
+explodepkg \- Extract the contents of a package to the current directory.
+
+.SH SYNOPSIS
+.B explodepkg
+.I package
+.RI [ package2 " ...]"
+
+.SH DESCRIPTION
+.B explodepkg
+uncompresses and untars files from package files to the current
+directory. The input files can be tar archives optionally compressed
+with gzip, bzip2 or lzma, or rpm or deb packages. The input file type is
+recognized from the filename extension, which should be
+.BR .tar ,
+.BR .tgz ,
+.BR .tlz ,
+.BR .tbz ,
+.BR .rpm
+or
+.BR .deb .
+If the filename has an unknown extension,
+.B explodepkg
+assumes
+.B .tgz
+for backwards compability.
+.PP
+.B explodepkg
+is intended for package maintenance \- exploding a package to a
+subdirectory, making fixes to it or upgrading the software, and then
+building the updated package with
+.BR makepkg (1).
+.B explodepkg
+should not be used for installing packages, because it does not update
+the package database or run install scripts.
+
+.SH AUTHORS
+Original by Patrick J. Volkerding <volkerdi@slackware.com>
+.PP
+Revised for Tukaani Linux by Lasse Collin <lasse.collin@tukaani.org>
+and Ville Koskinen <w\-ber@iki.fi>
+
+.SH "SEE ALSO"
+.BR pkgtool (8),
+.BR installpkg (8),
+.BR removepkg (8),
+.BR upgradepkg (8),
+.BR viewpkg (1),
+.BR makepkg (1),
+.BR convertpkg (1),
+.BR slackrepo (1),
+.BR tar (1),
+.BR gzip (1),
+.BR bzip2 (1),
+.BR lzma (1)

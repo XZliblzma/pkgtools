@@ -1,0 +1,4 @@
+slackware-10.0 "Slackware 10.0" \
+slackware-10.1 "Slackware 10.1" \
+slackware-10.2 "Slackware 10.2" \
+slackware-current "Slackware Current" \
