@@ -1,4 +1,13 @@
 
+????-??-?? - from tukaani_1.2.4 to tukaani_1.2.5
+
+  * Made makerepo to process also the "patches" directory.
+  * Fixed a bug in functions.installpkg.sh, which broke rebuilding
+    the texinfo's dir file if the ROOT variable is set. Thanks to
+    Vladimir A. Pavlov for a patch.
+
+---
+
 2007-01-10 - from tukaani_1.2.3 to tukaani_1.2.4
 
   * Fixed a bug in functions.explode.sh that broke explodepkg and 
