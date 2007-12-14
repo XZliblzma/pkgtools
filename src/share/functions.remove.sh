@@ -176,9 +176,9 @@ remove_pkg() {
       [ ! -d "$ADM_DIR/removed_scripts"  ] && mkdir -m 0755 "$ADM_DIR/removed_scripts"
       mv -f "$ADM_DIR/packages/$1" "$ADM_DIR/removed_packages"
       [ -r "$ADM_DIR/scripts/$1" ] &&  mv -f "$ADM_DIR/scripts/$1" "$ADM_DIR/removed_scripts"
+      # Create a log entry:
+      log_line "Removed: $1"
     fi
-    # Create a log entry:
-    log_line "Removed: $1"
   # Close the subshell and redirect stderr to stdout:
   ) 2>&1
   return 0
