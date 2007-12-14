@@ -43,7 +43,7 @@ remove_pkg() {
     # !(foo) so we have to work around it.
     (
       cd "$ADM_DIR/packages" \
-          && sed -s '1,/^FILE LIST:$/d' \
+          && sed -s '1,/^FILE LIST:$/d' /dev/null \
           $({ ls -A1; echo "$1"; } | sort | uniq -u) \
           > "$TMP/required_files.$$"
     )
@@ -53,7 +53,7 @@ remove_pkg() {
       extract_links < "$ADM_DIR/scripts/$1" | sort -u > "$TMP/del_link_list.$$"
       (
         cd "$ADM_DIR/scripts" \
-            && cat $({ ls -A1; echo "$1"; } | sort | uniq -u) \
+            && cat /dev/null $({ ls -A1; echo "$1"; } | sort | uniq -u) \
             | extract_links > "$TMP/required_links.$$"
       )
       sort -u "$TMP/required_links.$$" "$TMP/required_files.$$" \
@@ -89,7 +89,7 @@ remove_pkg() {
       done | xargs -0r rm -f
     else
       set +f
-      cat "$ADM_DIR/scripts/"* | extract_links > "$TMP/required_links.$$"
+      cat "$ADM_DIR/scripts/"* 2> /dev/null | extract_links > "$TMP/required_links.$$"
       set -f
       sort -u "$TMP/required_links.$$" "$TMP/required_files.$$" \
           > "$TMP/required_list.$$"
