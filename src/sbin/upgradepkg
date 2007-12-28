@@ -114,6 +114,7 @@ for ARGS; do
   # Figure out the names of the old and new packages:
   OLD=${ARGS%%'%'*}
   PKG=${ARGS#*'%'}
+  is_dangerous_package_name "$PKG" && { EXITSTATUS=97; break; }
   TYPE=$(package_type "$PKG")
   OLD=$(package_fullname "$OLD")
   NEW=$(package_fullname "$PKG")

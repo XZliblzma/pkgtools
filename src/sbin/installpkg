@@ -166,6 +166,7 @@ for PKG; do
   PKG="$BASEDIR$PKG"
 
   # Check that the package name is reasonable, and set PKG_* variables:
+  is_dangerous_package_name "$PKG" && { EXITSTATUS=97; break; }
   installpkg_checkname || { EXITSTATUS=$?; continue; }
 
   # Show a nice banner:

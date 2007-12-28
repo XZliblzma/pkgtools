@@ -65,6 +65,8 @@ fi
 EXITSTATUS=0
 
 for PKG; do
+  is_dangerous_package_name "$PKG" && { EXITSTATUS=97; break; }
+
   PKGNAME=$(package_fullname "$PKG")
   # If we don't have a package match here, then we will attempt to find
   # a package using the long name format (name-version-arch-build) for

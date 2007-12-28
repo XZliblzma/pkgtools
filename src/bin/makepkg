@@ -80,6 +80,8 @@ if [ $# != 1 ]; then
   exit 99
 fi
 
+is_dangerous_package_name "$PKG" && exit 1
+
 PKG_TYPE=$(package_type "$1")
 if [ -z "$PKG_TYPE" ]; then
   echo "Error: Package name must end with '.tgz', '.tlz', '.tbz' or '.tar'."

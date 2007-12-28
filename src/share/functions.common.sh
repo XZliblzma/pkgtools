@@ -158,6 +158,18 @@ is_valid_package_name() {
       -n "$(echo "$1" | sed -n "s,^.*/,,; /^$ALLOWED_FILECHARS\+$/p")"  ]
 }
 
+# Returns true (zero) if the given package name could trigger bugs in
+# pkgtools. This is very dirty hack, but I don't have time for better fix.
+is_dangerous_package_name() {
+  if [ "$(echo -n "x$1" | wc -c | tr -d ' ')" \
+      != "$(echo -n "x$1" | tr -d '[:cntrl:]' | wc -c | tr -d ' ')" ] \
+      || [ -n "$(echo "x$1" | sed -n 's,^x-.*$,x,p; s,^.*/,,; s,^-.*$,x,p')" ]; then
+    echo "ERROR: Dangerous package name given (possibly leading dash)."
+    return 0
+  fi
+  return 1
+}
+
 # Extracts symlinks from doinst.sh style script. Reads stdin and outputs to stdout.
 extract_links() {
   sed -n "
