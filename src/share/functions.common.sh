@@ -132,6 +132,24 @@ package_strip_extension() {
   return 0
 }
 
+# Returns full package name from package database which is going to be removed.
+package_remove_name() {
+  local NEEDLE FILE BASE
+  NEEDLE=$(package_fullname "$1")
+  if [ -f "$ADM_DIR/packages/$NEEDLE" ]; then
+    echo "$NEEDLE"
+    return 0
+  fi
+  for FILE in "$ADM_DIR/packages/$NEEDLE-"*; do
+    BASE=$(package_basename "$FILE")
+    if [ "$BASE" = "$NEEDLE" ]; then
+      echo "$BASE"
+      return 0
+    fi
+  done
+  return 1
+}
+
 # Returns true (zero) if the argument is an URL to a package file:
 is_url_package() {
   case "$1" in
