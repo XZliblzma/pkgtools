@@ -147,6 +147,7 @@ package_remove_name() {
       return 0
     fi
   done
+  echo "$NEEDLE"
   return 1
 }
 

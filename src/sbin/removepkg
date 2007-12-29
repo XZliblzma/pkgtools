@@ -75,7 +75,7 @@ for PKG; do
   # be removed.  If you want to remove them all, you'll need to run
   # removepkg again until it removes all the same-named packages.
   PKGNAME=$(package_remove_name "$PKG")
-  if [ -z "$PKGNAME" ]; then
+  if [ ! -r "$ADM_DIR/packages/$PKGNAME" ]; then
     echo "No such package: $ADM_DIR/packages/$PKGNAME. Can't remove."
     EXITSTATUS=1
     continue
