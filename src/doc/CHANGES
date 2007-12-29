@@ -5,6 +5,9 @@
   * Fixed a bug in functions.installpkg.sh, which broke rebuilding
     the texinfo's dir file if the ROOT variable is set. Thanks to
     Vladimir A. Pavlov for a patch.
+  * Reject package names that begin with a dash. This works around
+    bunch of bugs in pkgtools, trying to limit damage to package
+    database.
 
 ---
 
