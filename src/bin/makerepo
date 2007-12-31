@@ -664,8 +664,9 @@ if [ -z "$PACKAGESTXT$MANIFEST$FILELISTTXT$MD5SUMS$SHA1SUMS" \
 fi
 
 if [ "$OFFICIAL_REPO" = "yes" ]; then
-  for I in {PACKAGES.TXT,CHECKSUMS.md5,CHECKSUMS.sha1}{,.gz}; do
+  for I in PACKAGES.TXT,CHECKSUMS.md5,CHECKSUMS.sha1; do
     [ -e "slackware/$I" ] && ln -sf "slackware/$I" .
+    [ -e "slackware/$I.gz" ] && ln -sf "slackware/$I.gz" .
   done
 fi
 
