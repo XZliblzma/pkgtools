@@ -1,13 +1,25 @@
 
-????-??-?? - from tukaani_1.2.4 to tukaani_1.2.5
+2007-12-31 - from tukaani_1.2.4 to tukaani_1.3.0 (development version)
 
-  * Made makerepo to process also the "patches" directory.
+  * Made makerepo to process also the "patches" directory. Thanks
+    to arny for noticing this.
   * Fixed a bug in functions.installpkg.sh, which broke rebuilding
     the texinfo's dir file if the ROOT variable is set. Thanks to
     Vladimir A. Pavlov for a patch.
   * Reject package names that begin with a dash. This works around
     bunch of bugs in pkgtools, trying to limit damage to package
     database.
+  * Make "upgradepkg foo-1.23-i486-1%foo-1.24-i486-1" to remove
+    only foo-1.23-i486-1, not all packages with basename foo. Plain
+    "upgradepkg foo-1.24-i486-1" and "upgradepkg foo%foo-1.24-i486-1"
+    still remove all packages with basename foo. Thanks to Vladimir
+    A. Pavlov for problem description and the original patch.
+  * Make it possible to remove the last package from the system
+    with removepkg when used in combination with ROOT or --root.
+    Thanks to Vladimir A. Pavlov for cleaner (and faster) fix than
+    the original one in Slackware.
+  * Don't log removal of package when using "removepkg --warn".
+    Again, thanks to Vladimir A. Pavlov for the patch. :-)
 
 ---
 
