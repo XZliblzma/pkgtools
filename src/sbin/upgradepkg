@@ -192,7 +192,7 @@ for ARGS; do
       done
       echo
     else
-      echo "$OLD"
+      echo " $OLD"
     fi
     continue
   elif [ "$VERBOSE" != "quiet" ]; then
