@@ -111,16 +111,27 @@ installpkg_init $# $FORCE_GPG
 # Main processing loop:
 for ARGS; do
 
-  # Figure out the names of the old and new packages:
-  OLD=${ARGS%%'%'*}
-  PKG=${ARGS#*'%'}
-  is_dangerous_package_name "$PKG" && { EXITSTATUS=97; break; }
-  TYPE=$(package_type "$PKG")
-  OLD=$(package_fullname "$OLD")
-  NEW=$(package_fullname "$PKG")
+  # See if we have been given the name of the old package:
+  case "$ARGS" in
+    *%*)
+      OLD=${ARGS%%'%'*}
+      PKG=${ARGS#*'%'}
+      ;;
+    *)
+      OLD=
+      PKG=$ARGS
+      ;;
+  esac
 
   # Check that the package name is reasonable, and set PKG_* variables:
+  if is_dangerous_package_name "$OLD" || is_dangerous_package_name "$PKG"; then
+    EXITSTATUS=97
+    break
+  fi
   installpkg_checkname || { EXITSTATUS=$?; continue; }
+
+  TYPE=$(package_type "$PKG")
+  NEW=$(package_fullname "$PKG")
 
   # Check if it is already installed and --reinstall was not requested:
   if [ "$REINSTALL" != "yes" -a -f "$ADM_DIR/packages/$NEW" ]; then
@@ -132,18 +143,23 @@ for ARGS; do
     continue
   fi
 
-  # Check and fix the old package name:
-  OLD_BASENAME=$(package_basename "$OLD")
-  if [ ! -r "$ADM_DIR/packages/$OLD" ]; then
-    for I in "$ADM_DIR/packages/$OLD_BASENAME"* ; do
-      # If no matches were found, break out of this loop:
-      [ "$I" = "$ADM_DIR/packages/$OLD_BASENAME*" ] && break
-      if [ "$(package_basename "$I")" = "$OLD_BASENAME" ]; then # found one
-        OLD=$(basename "$I")
-        break
-      fi
-    done
+  # Get the old package name:
+  if [ -z "$OLD" ]; then
+    OLD_BASENAME=$(package_basename "$PKG")
+    OLD=$(package_remove_name "$OLD_BASENAME")
+    OLD_GLOB=yes
+  else
+    OLD=$(package_fullname "$OLD")
+    if [ -f "$ADM_DIR/packages/$OLD" ]; then
+      OLD_BASENAME=$(package_basename "$OLD")
+      OLD_GLOB=no
+    else
+      OLD_BASENAME=$OLD
+      OLD=$(package_remove_name "$OLD_BASENAME")
+      OLD_GLOB=yes
+    fi
   fi
+  [ -z "$OLD" ] && OLD=$OLD_BASENAME
 
   # Find out should we (download and) install/upgrade this package:
   IS_UPGRADE=1  # Assume that we are upgrading an already installed package.
@@ -168,12 +184,16 @@ for ARGS; do
     IS_UPGRADE=0 # Installing a new package (not upgrading).
   elif [ "$DRY_RUN" = "yes" ]; then
     echo -n "$NEW would upgrade:"
-    for FILE in "$ADM_DIR/packages/$OLD_BASENAME"* ; do
-      if [ "$(package_basename "$FILE")" = "$OLD_BASENAME" ]; then
-        echo -n " $(package_fullname "$FILE")"
-      fi
-    done
-    echo
+    if [ "$OLD_GLOB" = "yes" ]; then
+      for FILE in "$ADM_DIR/packages/$OLD_BASENAME"* ; do
+        if [ "$(package_basename "$FILE")" = "$OLD_BASENAME" ]; then
+          echo -n " $(package_fullname "$FILE")"
+        fi
+      done
+      echo
+    else
+      echo "$OLD"
+    fi
     continue
   elif [ "$VERBOSE" != "quiet" ]; then
     installpkg_banner "Upgrading $OLD using $NEW.$TYPE"
@@ -190,16 +210,23 @@ for ARGS; do
     # Rename all the installed packages with this basename to make them
     # easy to remove later:
     TIMESTAMP=$(date +%Y-%m-%d,%T)
-    for I in "$ADM_DIR/packages/$OLD_BASENAME"* ; do
-      if [ "$(package_basename "$I")" = "$OLD_BASENAME" ]; then
-        mv -f "$I" "$I-upgraded-$TIMESTAMP"
+    if [ "$OLD_GLOB" = "yes" ]; then
+      for I in "$ADM_DIR/packages/$OLD_BASENAME"* ; do
+        if [ "$(package_basename "$I")" = "$OLD_BASENAME" ]; then
+          mv -f "$I" "$I-upgraded-$TIMESTAMP"
+        fi
+      done
+      for I in "$ADM_DIR/scripts/$OLD_BASENAME"* ; do
+        if [ "$(package_basename "$I")" = "$OLD_BASENAME" -a -f "$I" ]; then
+          mv -f "$I" "$I-upgraded-$TIMESTAMP"
+        fi
+      done
+    else
+      mv -f "$ADM_DIR/packages/$OLD" "$ADM_DIR/packages/$OLD-upgraded-$TIMESTAMP"
+      if [ -f "$ADM_DIR/scripts/$OLD" ]; then
+        mv -f "$ADM_DIR/scripts/$OLD" "$ADM_DIR/scripts/$OLD-upgraded-$TIMESTAMP"
       fi
-    done
-    for I in "$ADM_DIR/scripts/$OLD_BASENAME"* ; do
-      if [ "$(package_basename "$I")" = "$OLD_BASENAME" -a -f "$I" ]; then
-        mv -f "$I" "$I-upgraded-$TIMESTAMP"
-      fi
-    done
+    fi
   fi
 
   # Next, the new package is pre-installed:
