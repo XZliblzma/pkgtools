@@ -133,21 +133,16 @@ package_strip_extension() {
 }
 
 # Returns full package name from package database which is going to be removed.
+# $1 = package basename
 package_remove_name() {
-  local NEEDLE FILE BASE
-  NEEDLE=$(package_fullname "$1")
-  if [ -f "$ADM_DIR/packages/$NEEDLE" ]; then
-    echo "$NEEDLE"
-    return 0
-  fi
-  for FILE in "$ADM_DIR/packages/$NEEDLE-"*; do
+  local FILE BASE
+  for FILE in "$ADM_DIR/packages/$1-"*; do
     BASE=$(package_basename "$FILE")
-    if [ "$BASE" = "$NEEDLE" ]; then
+    if [ "$BASE" = "$1" ]; then
       echo "$BASE"
       return 0
     fi
   done
-  echo "$NEEDLE"
   return 1
 }
 
