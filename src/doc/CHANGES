@@ -20,6 +20,8 @@
     the original one in Slackware.
   * Don't log removal of package when using "removepkg --warn".
     Again, thanks to Vladimir A. Pavlov for the patch. :-)
+  * Synchronized setup.80.make-bootdisk and added setup.htmlview
+    from Slackware Current.
 
 ---
 
