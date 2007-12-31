@@ -135,11 +135,10 @@ package_strip_extension() {
 # Returns full package name from package database which is going to be removed.
 # $1 = package basename
 package_remove_name() {
-  local FILE BASE
+  local FILE
   for FILE in "$ADM_DIR/packages/$1-"*; do
-    BASE=$(package_basename "$FILE")
-    if [ "$BASE" = "$1" ]; then
-      echo "$BASE"
+    if [ "$(package_basename "$FILE")" = "$1" ]; then
+      echo "${FILE##*/}"
       return 0
     fi
   done
