@@ -32,18 +32,15 @@ view_packages() {
   dialog --title "SCANNING" --infobox "Please wait while \
 Pkgtool scans your system to determine which packages you have \
 installed and prepares a list for you." 0 0
-  (
-    echo 'dialog $DEFITEM --menu "Please select the package you wish to view." 20 76 13 \'
-    format_list_of_installed_packages | sed 's/$/\\/'
-    echo "2> \"$TMP/return\""
-  ) > "$TMP/viewscr"
+  format_list_of_installed_packages > "$TMP/tmpmsg"
   while : ; do
-    . "$TMP/viewscr"
+    dialog $DEFITEM --menu "Please select the package you wish to view." 20 76 13 \
+        --file "$TMP/tmpmsg" 2> "$TMP/return"
     [ $? != 0 ] && break
     DEFITEM="--default-item $(cat "$TMP/return")"
     view_installed_package_contents "$(cat "$TMP/return")"
   done
-  rm -f "$TMP/return" "$TMP/viewscr" "$TMP/tmpmsg"
+  rm -f "$TMP/return" "$TMP/tmpmsg"
 }
 
 remove_list() {
