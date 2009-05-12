@@ -83,35 +83,36 @@ package_fullname() {
 package_basename() {
   echo "$1" | sed '
       s,^.*/,,
-      s,\.\(tgz\|tlz\|tbz\|tar\)$,,;s,-[^-]\+-[^-]\+-[^-]\+$,,'
+      s,\.\(tgz\|txz\|tlz\|tbz\|tar\)$,,;s,-[^-]\+-[^-]\+-[^-]\+$,,'
 }
 
 # '/path/to/foo-bar-0.12-i486-1.tgz' => '0.12'
 package_version() {
   echo "$1" | sed -n '
       s,^.*/,,
-      s,^.*-\([^-]\+\)-[^-]\+-[^-]\+\.\(tgz\|tlz\|tbz\|tar\)$,\1,p'
+      s,^.*-\([^-]\+\)-[^-]\+-[^-]\+\.\(tgz\|txz\|tlz\|tbz\|tar\)$,\1,p'
 }
 
 # '/path/to/foo-bar-0.12-i486-1.tgz' => 'i486'
 package_arch() {
   echo "$1" | sed -n '
       s,^.*/,,
-      s,^.*-[^-]\+-\([^-]\+\)-[^-]\+\.\(tgz\|tlz\|tbz\|tar\)$,\1,p'
+      s,^.*-[^-]\+-\([^-]\+\)-[^-]\+\.\(tgz\|txz\|tlz\|tbz\|tar\)$,\1,p'
 }
 
 # '/path/to/foo-bar-0.12-i486-1.tgz' => '1'
 package_buildversion() {
   echo "$1" | sed -n '
       s,^.*/,,
-      s,^.*-[^-]\+-[^-]\+-\([^-]\+\)\.\(tgz\|tlz\|tbz\|tar\)$,\1,p'
+      s,^.*-[^-]\+-[^-]\+-\([^-]\+\)\.\(tgz\|txz\|tlz\|tbz\|tar\)$,\1,p'
 }
 
-# Returns package type which can be "tgz", "tlz", "tbz", "tar" or "".
+# Returns package type which can be "tgz", "txz", "tlz", "tbz", "tar" or "".
 # Empty means invalid package name/type.
 package_type() {
   case "$1" in
     *.tgz)  echo tgz ;;
+    *.txz)  echo txz ;;
     *.tlz)  echo tlz ;;
     *.tbz)  echo tbz ;;
     *.tar)  echo tar ;;
@@ -124,6 +125,7 @@ package_type() {
 package_strip_extension() {
   case "$1" in
     *.tgz)  echo "${1%.tgz}" ;;
+    *.txz)  echo "${1%.txz}" ;;
     *.tlz)  echo "${1%.tlz}" ;;
     *.tbz)  echo "${1%.tbz}" ;;
     *.tar)  echo "${1%.tar}" ;;
@@ -151,8 +153,8 @@ is_url_package() {
     # If it begins with http:// or ftp:// and...
     "http://"*|"ftp://"*)
       case "$1" in
-        # ...ends in .tgz, .tlz, .tbz or .tar...
-        *.tgz|*.tlz|*.tbz|*.tar)
+        # ...ends in .tgz, .txz, .tlz, .tbz or .tar...
+        *.tgz|*.txz|*.tlz|*.tbz|*.tar)
           # ...return true:
           return 0
           ;;
@@ -167,7 +169,7 @@ is_url_package() {
 # specifications.
 is_valid_package_name() {
   [ -n "$(echo "$1" | sed -n \
-      's,^.*/,,; s,^[^-].*-[^-]\+-[^-]\+-[^-]\+\.\(tgz\|tlz\|tbz\|tar\)$,&,p')" -a \
+      's,^.*/,,; s,^[^-].*-[^-]\+-[^-]\+-[^-]\+\.\(tgz\|txz\|tlz\|tbz\|tar\)$,&,p')" -a \
       -n "$(echo "$1" | sed -n "s,^.*/,,; /^$ALLOWED_FILECHARS\+$/p")"  ]
 }
 
@@ -208,7 +210,7 @@ packagestxt2filelist() {
           }
       ' "$1" | sed -n "
           /$ALLOWED_DIRCHARS\+\/$ALLOWED_FILECHARS\+/"'{
-            s/^\.\/\([^ ]*-[^-/ ]*-[^-/ ]*-[^-/ ]*\)\.\(tgz\|tlz\|tbz\|tar\)$/\1.\2/p
+            s/^\.\/\([^ ]*-[^-/ ]*-[^-/ ]*-[^-/ ]*\)\.\(tgz\|txz\|tlz\|tbz\|tar\)$/\1.\2/p
           }
       ' | sort -u
 }
@@ -234,6 +236,9 @@ check_cmd_lzma() {
 # Uncompress a file to stdout:
 uncompress_pkg() {
   case "$1" in
+    *.txz)
+      xz -dc "$1" 2> /dev/null
+      ;;
     *.tlz|*.lzma)
       # Reset PKGTOOLS_LZMA if we are installing/upgrading
       # the lzma package:

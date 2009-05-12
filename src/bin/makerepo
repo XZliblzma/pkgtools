@@ -90,7 +90,7 @@ create_safelist() {
   DIRNAME=${1##*/}
   [ -f "$TMP/pkglist.$DIRNAME" ] && return 0
   # Create a list of package files currently in the repository:
-  find "$1" -follow -name '*.tgz' -or -name '*.tlz' -or -name '*.tbz' \
+  find "$1" -follow -name '*.tgz' -or -name '*.txz' -or -name '*.tlz' -or -name '*.tbz' \
       | sed '
           \,/source/,d
           s,^\./,,
@@ -100,7 +100,7 @@ create_safelist() {
       | sort > "$TMP/pkglist_in"
   # Verify the filenames:
   sed -n "/^\\($ALLOWED_DIRCHARS\\+\\/\\|\\)$ALLOWED_FILECHARS\\+\$/p" "$TMP/pkglist_in" \
-      | sed -n '/^\(.*\/\|\)[^/]\+-[^-/]\+-[^-/]\+-[^-/]\+\.\(tgz\|tlz\|tbz\|tar\)$/p' \
+      | sed -n '/^\(.*\/\|\)[^/]\+-[^-/]\+-[^-/]\+-[^-/]\+\.\(tgz\|txz\|tlz\|tbz\|tar\)$/p' \
       > "$TMP/pkglist.$DIRNAME"
   sort "$TMP/pkglist_in" "$TMP/pkglist.$DIRNAME" | uniq -u > "$TMP/invalid"
   if [ -s "$TMP/invalid" ]; then
@@ -508,11 +508,11 @@ create_changelog() {
   echo
   echo -n "Creating $1/ChangeLog.txt"
   catzcat "$1/FILELIST.TXT" \
-      | sed -rn '/\/source\//d; /\.(tgz|tbz|tlz|tar)$/{s/^.* //p}' \
+      | sed -rn '/\/source\//d; /\.(tgz|txz|tbz|tlz|tar)$/{s/^.* //p}' \
       | sort \
       > "$TMP/oldlist"
   catzcat "$TMP/FILELIST.TXT" \
-      | sed -rn '/\/source\//d; /\.(tgz|tbz|tlz|tar)$/{s/^.* //p}' \
+      | sed -rn '/\/source\//d; /\.(tgz|txz|tbz|tlz|tar)$/{s/^.* //p}' \
       | sort \
       > "$TMP/newlist"
   comm -23 "$TMP/oldlist" "$TMP/newlist" \
